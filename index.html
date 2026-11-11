@@ -150,6 +150,8 @@ async function loadAll() {
 }
 
 const profit = (t) => (Number(t.income_eur) || 0) - (Number(t.cost_eur) || 0);
+const taxOf = (t) => Number(t.tax_eur) || 0;
+const net = (t) => profit(t) - taxOf(t);
 
 function showError(msg) {
   const v = $('view');
@@ -169,10 +171,10 @@ function tripStatus(t) {
 function tripsTable(rows) {
   if (!rows.length) return '<div class="pad muted">Рейсов нет</div>';
   return '<div class="scroll"><table><thead><tr>' +
-    '<th>Загрузка</th><th>Клиент</th><th>Город</th><th>Перевозчик</th><th class="r">Доход</th><th class="r">Расход</th><th class="r">Прибыль</th><th>Статус</th>' +
+    '<th>Загрузка</th><th>Клиент</th><th>Город</th><th>Перевозчик</th><th class="r">Доход</th><th class="r">Расход</th><th class="r">Налог</th><th class="r">Чистая прибыль</th><th>Статус</th>' +
     '</tr></thead><tbody>' +
     rows.map((t) => {
-      const p = profit(t);
+      const p = net(t);
       return '<tr>' +
         '<td><a href="#/trip/' + esc(t.id) + '" style="font-weight:500">' + fdate(t.loading_date) + '</a></td>' +
         '<td>' + (t.clients ? esc(t.clients.name) : '<span class="muted">не указан</span>') + '</td>' +
@@ -180,6 +182,7 @@ function tripsTable(rows) {
         '<td>' + esc(t.carriers ? t.carriers.name : '—') + '</td>' +
         '<td class="r">' + eur(t.income_eur) + '</td>' +
         '<td class="r">' + eur(t.cost_eur) + '</td>' +
+        '<td class="r">' + eur(t.tax_eur) + '</td>' +
         '<td class="r ' + (p >= 0 ? 'pos' : 'neg') + '">' + eur(p) + '</td>' +
         '<td>' + tripStatus(t) + '</td></tr>';
     }).join('') + '</tbody></table></div>';
@@ -189,15 +192,17 @@ function renderDashboard() {
   setNav('home');
   const inc = trips.reduce((s, t) => s + (Number(t.income_eur) || 0), 0);
   const cost = trips.reduce((s, t) => s + (Number(t.cost_eur) || 0), 0);
-  const pr = inc - cost;
+  const tax = trips.reduce((s, t) => s + taxOf(t), 0);
+  const pr = inc - cost - tax;
   const margin = inc > 0 ? (pr / inc * 100) : 0;
   const noClient = trips.filter((t) => !t.clients).length;
   $('view').innerHTML =
-    '<div class="top"><div><h1>Дашборд</h1><div class="sub">Прибыль считается как доход минус расход, до налога</div></div>' +
+    '<div class="top"><div><h1>Дашборд</h1><div class="sub">Чистая прибыль: доход минус расход минус налог</div></div>' +
     '<button class="btn" id="newTripBtn" type="button">Новый рейс</button></div>' +
     '<div class="metrics">' +
       '<div class="metric"><div class="l">Доход</div><div class="v">' + eur(inc) + '</div></div>' +
-      '<div class="metric"><div class="l">Прибыль</div><div class="v pos">' + eur(pr) + '</div></div>' +
+      '<div class="metric"><div class="l">Налоги</div><div class="v">' + eur(tax) + '</div></div>' +
+      '<div class="metric"><div class="l">Чистая прибыль</div><div class="v pos">' + eur(pr) + '</div></div>' +
       '<div class="metric"><div class="l">Маржа</div><div class="v">' + margin.toFixed(1).replace('.', ',') + '%</div></div>' +
       '<div class="metric"><div class="l">Рейсов</div><div class="v">' + trips.length + '</div></div>' +
     '</div>' +
@@ -259,7 +264,8 @@ async function renderTrip(id) {
         '<div style="display:flex;justify-content:space-between"><span class="muted">Доход</span><span>' + eur(t.income_eur) + '</span></div>' +
         '<div style="display:flex;justify-content:space-between"><span class="muted">Расход</span><span>' + eur(t.cost_eur) + '</span></div>' +
         '<div style="display:flex;justify-content:space-between"><span class="muted">Налог</span><span>' + eur(t.tax_eur) + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:14px"><strong>Прибыль до налога</strong><span class="' + (p >= 0 ? 'pos' : 'neg') + '" style="font-size:22px">' + eur(p) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:14px"><span class="muted">Прибыль до налога</span><span>' + eur(p) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Чистая прибыль</strong><span class="' + (net(t) >= 0 ? 'pos' : 'neg') + '" style="font-size:22px">' + eur(net(t)) + '</span></div>' +
       '</div></div>' +
       '<div class="card"><h3>Клиент</h3><form id="clientForm" class="pad"><div id="clientErr" class="err hidden"></div>' +
         '<div><label for="clientName">Клиент этого рейса</label><input id="clientName" list="clientList" value="' + esc(t.clients ? t.clients.name : '') + '" placeholder="Название клиента"><datalist id="clientList">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
