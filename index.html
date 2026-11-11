@@ -237,7 +237,7 @@ async function renderTrip(id) {
   const legacy = t.legacy ? Object.entries(t.legacy).map(([k, v]) => esc(k) + ': ' + esc(v)).join('\n') : '';
   $('view').innerHTML =
     '<div><a href="#/trips" style="font-size:14px;text-decoration:none">← Все рейсы</a>' +
-    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><h1 style="margin:0;font-size:28px;letter-spacing:-.5px">Рейс ' + fdate(t.loading_date) + (t.clients ? ' · ' + esc(t.clients.name) : '') + '</h1>' + tripStatus(t) + '</div></div>' +
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><h1 style="margin:0;font-size:28px;letter-spacing:-.5px">Рейс ' + fdate(t.loading_date) + (t.clients ? ' · ' + esc(t.clients.name) : '') + '</h1>' + tripStatus(t) + '<button class="btn ghost small" id="editTripBtn" type="button">Редактировать</button></div></div>' +
     (dr.error ? '<div class="err">Документы не загрузились: ' + esc(dr.error.message) + '</div>' : '') +
     '<div class="cols"><div class="a">' +
       '<div class="card"><h3>Маршрут и груз</h3><div class="grid2">' +
@@ -272,6 +272,7 @@ async function renderTrip(id) {
         '<div><button class="btn small" type="submit">Сохранить клиента</button></div></form></div>' +
     '</div></div>';
 
+  $('editTripBtn').onclick = () => openTripForm(t);
   $('clientForm').onsubmit = async (e) => {
     e.preventDefault();
     const box = $('clientErr'); box.classList.add('hidden');
@@ -312,40 +313,61 @@ async function findOrCreate(table, name) {
   return r.data.id;
 }
 
-function openNewTrip() {
+function openNewTrip() { openTripForm(null); }
+
+function openTripForm(t) {
+  const edit = !!t;
+  const g = (k) => (edit && t[k] != null) ? esc(t[k]) : '';
+  const cname = (edit && t.clients) ? esc(t.clients.name) : '';
+  const kname = (edit && t.carriers) ? esc(t.carriers.name) : '';
   $('modalRoot').innerHTML =
-    '<div class="overlay" id="ov"><form class="modal" id="tripForm" role="dialog" aria-label="Новый рейс"><h2>Новый рейс</h2><div id="tripErr" class="err hidden"></div>' +
-    '<div class="f2"><div><label for="nLoad">Дата загрузки</label><input id="nLoad" type="date" required></div><div><label for="nUnload">Дата выгрузки</label><input id="nUnload" type="date"></div></div>' +
-    '<div><label for="nClient">Клиент</label><input id="nClient" list="cl" placeholder="Название клиента" required><datalist id="cl">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
-    '<div><label for="nCity">Город загрузки</label><input id="nCity" placeholder="Напр. 91481 Münchsteinach"></div>' +
-    '<div><label for="nCargo">Груз</label><input id="nCargo" placeholder="Напр. Лимонад"></div>' +
-    '<div class="f2"><div><label for="nWeight">Вес, кг</label><input id="nWeight" inputmode="decimal"></div><div><label for="nPallets">Палет</label><input id="nPallets" inputmode="numeric"></div></div>' +
-    '<div class="f2"><div><label for="nIncome">Доход, €</label><input id="nIncome" inputmode="decimal"></div><div><label for="nCost">Расход, €</label><input id="nCost" inputmode="decimal"></div></div>' +
-    '<div><label for="nCarrier">Перевозчик</label><input id="nCarrier" list="ca" placeholder="Название перевозчика"><datalist id="ca">' + carriers.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
-    '<div><label for="nVehicle">Авто и водитель</label><input id="nVehicle"></div>' +
+    '<div class="overlay" id="ov"><form class="modal" id="tripForm" role="dialog" aria-label="' + (edit ? 'Редактирование рейса' : 'Новый рейс') + '"><h2>' + (edit ? 'Редактировать рейс' : 'Новый рейс') + '</h2><div id="tripErr" class="err hidden"></div>' +
+    '<div class="f2"><div><label for="nLoad">Дата загрузки</label><input id="nLoad" type="date" value="' + g('loading_date') + '" required></div><div><label for="nUnload">Дата выгрузки</label><input id="nUnload" type="date" value="' + g('unloading_date') + '"></div></div>' +
+    '<div><label for="nClient">Клиент</label><input id="nClient" list="cl" value="' + cname + '" placeholder="Название клиента" ' + (edit ? '' : 'required') + '><datalist id="cl">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
+    '<div><label for="nCity">Город загрузки</label><input id="nCity" value="' + g('city') + '" placeholder="Напр. 91481 Münchsteinach"></div>' +
+    '<div><label for="nCargo">Груз</label><input id="nCargo" value="' + g('cargo') + '" placeholder="Напр. Лимонад"></div>' +
+    '<div class="f2"><div><label for="nWeight">Вес, кг</label><input id="nWeight" inputmode="decimal" value="' + g('weight_kg') + '"></div><div><label for="nPallets">Палет</label><input id="nPallets" inputmode="numeric" value="' + g('pallets') + '"></div></div>' +
+    '<div class="f2"><div><label for="nIncome">Доход, €</label><input id="nIncome" inputmode="decimal" value="' + g('income_eur') + '"></div><div><label for="nCost">Расход, €</label><input id="nCost" inputmode="decimal" value="' + g('cost_eur') + '"></div></div>' +
+    '<div><label for="nTax">Налог, €</label><input id="nTax" inputmode="decimal" value="' + g('tax_eur') + '"></div>' +
+    '<div><label for="nCarrier">Перевозчик</label><input id="nCarrier" list="ca" value="' + kname + '" placeholder="Название перевозчика"><datalist id="ca">' + carriers.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
+    '<div><label for="nVehicle">Авто и водитель</label><input id="nVehicle" value="' + g('vehicle') + '"></div>' +
+    '<div><label for="nInvoice">Номер счёта</label><input id="nInvoice" value="' + g('invoice_number') + '"></div>' +
     '<div class="acts"><button class="btn ghost" type="button" id="cancelTrip">Отмена</button><button class="btn" type="submit" id="saveTrip">Сохранить</button></div></form></div>';
   $('cancelTrip').onclick = () => { $('modalRoot').innerHTML = ''; };
   $('tripForm').onsubmit = async (e) => {
     e.preventDefault();
     const box = $('tripErr'); box.classList.add('hidden');
+    const nums = {weight_kg: numOrNull($('nWeight').value), pallets: numOrNull($('nPallets').value),
+      income_eur: numOrNull($('nIncome').value), cost_eur: numOrNull($('nCost').value), tax_eur: numOrNull($('nTax').value)};
+    if (Object.values(nums).some((x) => x !== null && Number.isNaN(x))) {
+      box.textContent = 'Проверьте числа: в полях вес, палеты, доход, расход и налог должны быть только цифры.';
+      box.classList.remove('hidden'); return;
+    }
     const btn = $('saveTrip'); btn.disabled = true; btn.textContent = 'Сохраняю...';
     try {
       const cid = await findOrCreate('clients', $('nClient').value);
       const kid = await findOrCreate('carriers', $('nCarrier').value);
-      const row = {
+      const row = Object.assign({
         client_id: cid, carrier_id: kid,
         loading_date: $('nLoad').value || null, unloading_date: $('nUnload').value || null,
         city: $('nCity').value.trim() || null, cargo: $('nCargo').value.trim() || null,
-        weight_kg: numOrNull($('nWeight').value), pallets: numOrNull($('nPallets').value),
-        income_eur: numOrNull($('nIncome').value), cost_eur: numOrNull($('nCost').value),
-        vehicle: $('nVehicle').value.trim() || null, status: 'new'
-      };
-      const r = await db.from('trips').insert(row).select('id').single();
-      if (r.error) throw r.error;
-      $('modalRoot').innerHTML = '';
-      await loadAll();
-      location.hash = '#/trip/' + r.data.id;
-      route();
+        vehicle: $('nVehicle').value.trim() || null, invoice_number: $('nInvoice').value.trim() || null
+      }, nums);
+      if (edit) {
+        const r = await db.from('trips').update(row).eq('id', t.id);
+        if (r.error) throw r.error;
+        $('modalRoot').innerHTML = '';
+        await loadAll();
+        renderTrip(t.id);
+      } else {
+        row.status = 'new';
+        const r = await db.from('trips').insert(row).select('id').single();
+        if (r.error) throw r.error;
+        $('modalRoot').innerHTML = '';
+        await loadAll();
+        location.hash = '#/trip/' + r.data.id;
+        route();
+      }
     } catch (err) {
       box.textContent = 'Не удалось сохранить: ' + err.message; box.classList.remove('hidden');
       btn.disabled = false; btn.textContent = 'Сохранить';
