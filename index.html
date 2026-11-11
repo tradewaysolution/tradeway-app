@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TradeWay CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{
+  --navy:#1E3A5F; --ink:#14213D; --muted:#4A5568; --line:#DCE2EA; --bg:#F3F5F8; --card:#FFFFFF;
+  --warnbg:#FFF4DC; --warn:#7A4B00; --okbg:#E4F4EC; --ok:#1B6B45; --field:#7B8798;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+a{color:var(--navy)}
+button{font-family:inherit}
+.hidden{display:none!important}
+/* login */
+.login-wrap{min-height:100vh;display:flex;flex-wrap:wrap}
+.login-left{flex:1 1 420px;background:var(--navy);color:#fff;padding:64px;display:flex;flex-direction:column;justify-content:space-between;gap:40px}
+.login-left h1{margin:0;font-size:40px;line-height:1.15;font-weight:600;letter-spacing:-.8px;max-width:460px}
+.login-left p{margin:0;font-size:17px;line-height:1.5;color:#C9D6E8;max-width:460px}
+.login-right{flex:1 1 420px;display:flex;align-items:center;justify-content:center;padding:48px}
+.login-card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:36px;display:flex;flex-direction:column;gap:18px}
+.login-card h2{margin:0;font-size:24px;font-weight:600}
+.brand{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:600}
+.brand span{font-weight:400;color:#C9D6E8}
+/* shell */
+.shell{min-height:100vh;display:flex;flex-wrap:wrap}
+.side{flex:0 0 220px;background:var(--card);border-right:1px solid var(--line);padding:24px 16px;display:flex;flex-direction:column;gap:24px}
+.side .brand{color:var(--ink);font-size:16px;padding:0 8px}
+.side nav{display:flex;flex-direction:column;gap:4px}
+.side nav a{display:block;padding:10px 12px;font-size:14px;color:var(--ink);border-radius:8px;text-decoration:none}
+.side nav a.active{background:#E6EDF6;color:var(--navy);font-weight:600}
+.side .spacer{flex:1}
+.main{flex:999 1 560px;min-width:0;padding:32px;display:flex;flex-direction:column;gap:24px}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px}
+.top h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.5px}
+.sub{font-size:13px;color:var(--muted)}
+.btn{padding:11px 18px;font-size:14px;font-weight:500;color:#fff;background:var(--navy);border:0;border-radius:8px;cursor:pointer}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--field)}
+.btn.small{padding:8px 12px;font-size:13px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.metric{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px}
+.metric .l{font-size:13px;color:var(--muted)}
+.metric .v{font-size:28px;font-weight:600;letter-spacing:-.5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card h3{margin:0;padding:18px 20px;border-bottom:1px solid var(--line);font-size:16px;font-weight:600}
+.scroll{overflow-x:auto}
+table{width:100%;min-width:860px;border-collapse:collapse;font-size:14px}
+th{text-align:left;color:var(--muted);font-size:12px;font-weight:500;padding:12px 8px}
+td{padding:14px 8px;border-top:1px solid var(--line)}
+th:first-child,td:first-child{padding-left:20px}
+th:last-child,td:last-child{padding-right:20px}
+.r{text-align:right}
+.pos{color:var(--ok);font-weight:600}
+.neg{color:#9B1C1C;font-weight:600}
+.chip{display:inline-block;font-size:12px;padding:4px 10px;border-radius:12px;background:var(--okbg);color:var(--ok)}
+.chip.warn{background:var(--warnbg);color:var(--warn)}
+.muted{color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;padding:20px}
+.kv .k{font-size:12px;color:var(--muted);margin-bottom:4px}
+.kv .val{font-size:14px;line-height:1.5;word-break:break-word}
+.cols{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.cols>.a{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:24px}
+.cols>.b{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:24px}
+.row{padding:16px 20px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+.row:first-of-type{border-top:0}
+.pad{padding:20px;display:flex;flex-direction:column;gap:14px}
+label{font-size:13px;font-weight:500;display:block;margin-bottom:6px}
+input,select,textarea{width:100%;padding:11px 12px;font-size:14px;font-family:inherit;color:var(--ink);background:#fff;border:1px solid var(--field);border-radius:8px}
+.f2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.err{background:#FCEBEB;color:#9B1C1C;border-radius:8px;padding:10px 14px;font-size:13px}
+.overlay{position:fixed;inset:0;background:rgba(20,33,61,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:560px;max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.modal h2{margin:0;font-size:20px}
+.acts{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+details{padding:0 20px 16px}
+summary{cursor:pointer;font-size:13px;color:var(--muted);padding:6px 0}
+pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;background:var(--bg);padding:12px;border-radius:8px}
+.search{max-width:320px}
+</style>
+</head>
+<body>
+
+<div id="login" class="login-wrap hidden">
+  <div class="login-left">
+    <div class="brand">TradeWay <span>Solution</span></div>
+    <div>
+      <h1>Рейсы, документы и акциз в одном месте</h1>
+      <p style="margin-top:20px">CRM для международного экспедитора. Рейс в центре: вокруг него клиент, перевозчик, деньги и документы.</p>
+    </div>
+    <div style="font-size:14px;color:#C9D6E8">Доступ только по логину</div>
+  </div>
+  <div class="login-right">
+    <form id="loginForm" class="login-card">
+      <h2>Вход</h2>
+      <div id="loginErr" class="err hidden"></div>
+      <div><label for="email">Email</label><input id="email" type="email" autocomplete="username" required></div>
+      <div><label for="password">Пароль</label><input id="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn" type="submit" id="loginBtn">Войти</button>
+    </form>
+  </div>
+</div>
+
+<div id="app" class="shell hidden">
+  <aside class="side">
+    <div class="brand">TradeWay</div>
+    <nav>
+      <a href="#/" id="nav-home">Дашборд</a>
+      <a href="#/trips" id="nav-trips">Рейсы</a>
+    </nav>
+    <div class="spacer"></div>
+    <button class="btn ghost small" id="logoutBtn" type="button">Выйти</button>
+  </aside>
+  <main class="main" id="view"></main>
+</div>
+
+<div id="modalRoot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://imwfzjeewbfseexumard.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_bz86mNhG0gcyqr67nFhq1Q_9FG6hhaz';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const eur = (n) => (n == null || n === '') ? '—' : '€' + Number(n).toLocaleString('ru-RU', {maximumFractionDigits: 2});
+const fdate = (v) => { if (!v) return '—'; const p = String(v).split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : esc(v); };
+const numOrNull = (v) => { v = String(v == null ? '' : v).trim().replace(',', '.'); return v === '' ? null : Number(v); };
+const DOC_TYPES = {
+  carrier_order: 'Заявка перевозчику', client_order: 'Заявка клиенту', cmr: 'CMR',
+  packing_list: 'Packing list', invoice: 'Счёт', customs_certificate: 'Довідка', act: 'Акт', other: 'Другое'
+};
+
+let trips = [], clients = [], carriers = [];
+
+async function loadAll() {
+  const [t, c, k] = await Promise.all([
+    db.from('trips').select('*, clients(name), carriers(name)').order('loading_date', {ascending: false, nullsFirst: false}),
+    db.from('clients').select('id, name').order('name'),
+    db.from('carriers').select('id, name').order('name')
+  ]);
+  if (t.error) throw t.error;
+  if (c.error) throw c.error;
+  if (k.error) throw k.error;
+  trips = t.data; clients = c.data; carriers = k.data;
+}
+
+const profit = (t) => (Number(t.income_eur) || 0) - (Number(t.cost_eur) || 0);
+
+function showError(msg) {
+  const v = $('view');
+  v.insertAdjacentHTML('afterbegin', '<div class="err">' + esc(msg) + '</div>');
+}
+
+function setNav(active) {
+  $('nav-home').classList.toggle('active', active === 'home');
+  $('nav-trips').classList.toggle('active', active === 'trips');
+}
+
+function tripStatus(t) {
+  if (!t.clients) return '<span class="chip warn">Нужен клиент</span>';
+  return '<span class="chip">Клиент указан</span>';
+}
+
+function tripsTable(rows) {
+  if (!rows.length) return '<div class="pad muted">Рейсов нет</div>';
+  return '<div class="scroll"><table><thead><tr>' +
+    '<th>Загрузка</th><th>Клиент</th><th>Город</th><th>Перевозчик</th><th class="r">Доход</th><th class="r">Расход</th><th class="r">Прибыль</th><th>Статус</th>' +
+    '</tr></thead><tbody>' +
+    rows.map((t) => {
+      const p = profit(t);
+      return '<tr>' +
+        '<td><a href="#/trip/' + esc(t.id) + '" style="font-weight:500">' + fdate(t.loading_date) + '</a></td>' +
+        '<td>' + (t.clients ? esc(t.clients.name) : '<span class="muted">не указан</span>') + '</td>' +
+        '<td>' + esc(t.city || '—') + '</td>' +
+        '<td>' + esc(t.carriers ? t.carriers.name : '—') + '</td>' +
+        '<td class="r">' + eur(t.income_eur) + '</td>' +
+        '<td class="r">' + eur(t.cost_eur) + '</td>' +
+        '<td class="r ' + (p >= 0 ? 'pos' : 'neg') + '">' + eur(p) + '</td>' +
+        '<td>' + tripStatus(t) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+
+function renderDashboard() {
+  setNav('home');
+  const inc = trips.reduce((s, t) => s + (Number(t.income_eur) || 0), 0);
+  const cost = trips.reduce((s, t) => s + (Number(t.cost_eur) || 0), 0);
+  const pr = inc - cost;
+  const margin = inc > 0 ? (pr / inc * 100) : 0;
+  const noClient = trips.filter((t) => !t.clients).length;
+  $('view').innerHTML =
+    '<div class="top"><div><h1>Дашборд</h1><div class="sub">Прибыль считается как доход минус расход, до налога</div></div>' +
+    '<button class="btn" id="newTripBtn" type="button">Новый рейс</button></div>' +
+    '<div class="metrics">' +
+      '<div class="metric"><div class="l">Доход</div><div class="v">' + eur(inc) + '</div></div>' +
+      '<div class="metric"><div class="l">Прибыль</div><div class="v pos">' + eur(pr) + '</div></div>' +
+      '<div class="metric"><div class="l">Маржа</div><div class="v">' + margin.toFixed(1).replace('.', ',') + '%</div></div>' +
+      '<div class="metric"><div class="l">Рейсов</div><div class="v">' + trips.length + '</div></div>' +
+    '</div>' +
+    (noClient ? '<div class="card"><div class="row"><div><strong>У ' + noClient + ' рейсов не указан клиент.</strong><div class="sub">Откройте рейс и назначьте клиента, тогда он появится в отчётах по клиентам.</div></div><a class="btn ghost small" href="#/trips" style="text-decoration:none">Показать рейсы</a></div></div>' : '') +
+    '<div class="card"><h3>Последние рейсы</h3>' + tripsTable(trips.slice(0, 8)) + '</div>';
+  $('newTripBtn').onclick = openNewTrip;
+}
+
+function renderTrips() {
+  setNav('trips');
+  $('view').innerHTML =
+    '<div class="top"><h1>Рейсы</h1><div style="display:flex;gap:12px;flex-wrap:wrap">' +
+    '<input class="search" id="q" type="search" placeholder="Поиск: клиент, город, перевозчик" aria-label="Поиск">' +
+    '<button class="btn" id="newTripBtn" type="button">Новый рейс</button></div></div>' +
+    '<div class="card" id="tripsCard">' + tripsTable(trips) + '</div>';
+  $('newTripBtn').onclick = openNewTrip;
+  $('q').oninput = (e) => {
+    const s = e.target.value.trim().toLowerCase();
+    const rows = !s ? trips : trips.filter((t) =>
+      [t.clients && t.clients.name, t.city, t.carriers && t.carriers.name, t.vehicle, t.invoice_number].join(' ').toLowerCase().includes(s));
+    $('tripsCard').innerHTML = tripsTable(rows);
+  };
+}
+
+async function renderTrip(id) {
+  setNav('trips');
+  const t = trips.find((x) => x.id === id);
+  if (!t) { $('view').innerHTML = '<div class="err">Рейс не найден</div><a href="#/trips">К списку рейсов</a>'; return; }
+  const dr = await db.from('documents').select('*').eq('trip_id', id).order('created_at');
+  const docs = dr.error ? [] : dr.data;
+  const p = profit(t);
+  const legacy = t.legacy ? Object.entries(t.legacy).map(([k, v]) => esc(k) + ': ' + esc(v)).join('\n') : '';
+  $('view').innerHTML =
+    '<div><a href="#/trips" style="font-size:14px;text-decoration:none">← Все рейсы</a>' +
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><h1 style="margin:0;font-size:28px;letter-spacing:-.5px">Рейс ' + fdate(t.loading_date) + (t.clients ? ' · ' + esc(t.clients.name) : '') + '</h1>' + tripStatus(t) + '</div></div>' +
+    (dr.error ? '<div class="err">Документы не загрузились: ' + esc(dr.error.message) + '</div>' : '') +
+    '<div class="cols"><div class="a">' +
+      '<div class="card"><h3>Маршрут и груз</h3><div class="grid2">' +
+        '<div class="kv"><div class="k">Загрузка</div><div class="val">' + esc(t.city || '—') + '<br>' + fdate(t.loading_date) + '</div></div>' +
+        '<div class="kv"><div class="k">Выгрузка</div><div class="val">' + fdate(t.unloading_date) + '</div></div>' +
+        '<div class="kv"><div class="k">Груз</div><div class="val">' + esc(t.cargo || '—') + '<br>' + (t.weight_kg != null ? Number(t.weight_kg).toLocaleString('ru-RU') + ' кг' : '') + (t.pallets != null ? ', ' + esc(t.pallets) + ' палет' : '') + '</div></div>' +
+        '<div class="kv"><div class="k">Перевозчик и авто</div><div class="val">' + esc(t.carriers ? t.carriers.name : '—') + '<br>' + esc(t.vehicle || '') + '</div></div>' +
+        '<div class="kv"><div class="k">Счёт</div><div class="val">' + esc(t.invoice_number || '—') + '</div></div>' +
+      '</div>' +
+      (legacy ? '<details><summary>Исходные данные из старой таблицы</summary><pre>' + legacy + '</pre></details>' : '') +
+      '</div>' +
+      '<div class="card"><h3>Документы</h3>' +
+        (docs.length ? docs.map((d) => '<div class="row"><div><div style="font-weight:500">' + esc(d.title || DOC_TYPES[d.doc_type] || d.doc_type) + '</div><div class="sub">' + esc(DOC_TYPES[d.doc_type] || d.doc_type) + '</div></div>' +
+          '<div style="display:flex;align-items:center;gap:16px">' + (d.drive_url ? '<a href="' + esc(d.drive_url) + '" target="_blank" rel="noopener noreferrer">Открыть</a>' : '') +
+          '<button class="btn ghost small" type="button" data-deldoc="' + esc(d.id) + '">Удалить</button></div></div>').join('') : '<div class="pad muted">Документов пока нет</div>') +
+        '<form id="docForm" class="pad" style="border-top:1px solid var(--line)"><div id="docErr" class="err hidden"></div>' +
+          '<div class="f2"><div><label for="docType">Тип</label><select id="docType">' + Object.entries(DOC_TYPES).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select></div>' +
+          '<div><label for="docTitle">Название</label><input id="docTitle" placeholder="Напр. CMR №456812"></div></div>' +
+          '<div><label for="docUrl">Ссылка на файл в Google Drive</label><input id="docUrl" type="url" placeholder="https://drive.google.com/..." required></div>' +
+          '<div><button class="btn small" type="submit">Добавить документ</button></div></form>' +
+      '</div>' +
+    '</div><div class="b">' +
+      '<div class="card"><h3>Деньги</h3><div class="pad">' +
+        '<div style="display:flex;justify-content:space-between"><span class="muted">Доход</span><span>' + eur(t.income_eur) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span class="muted">Расход</span><span>' + eur(t.cost_eur) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span class="muted">Налог</span><span>' + eur(t.tax_eur) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:14px"><strong>Прибыль до налога</strong><span class="' + (p >= 0 ? 'pos' : 'neg') + '" style="font-size:22px">' + eur(p) + '</span></div>' +
+      '</div></div>' +
+      '<div class="card"><h3>Клиент</h3><form id="clientForm" class="pad"><div id="clientErr" class="err hidden"></div>' +
+        '<div><label for="clientName">Клиент этого рейса</label><input id="clientName" list="clientList" value="' + esc(t.clients ? t.clients.name : '') + '" placeholder="Название клиента"><datalist id="clientList">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
+        '<div><button class="btn small" type="submit">Сохранить клиента</button></div></form></div>' +
+    '</div></div>';
+
+  $('clientForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const box = $('clientErr'); box.classList.add('hidden');
+    try {
+      const cid = await findOrCreate('clients', $('clientName').value);
+      const r = await db.from('trips').update({client_id: cid}).eq('id', id);
+      if (r.error) throw r.error;
+      await loadAll(); renderTrip(id);
+    } catch (err) { box.textContent = 'Не удалось сохранить: ' + err.message; box.classList.remove('hidden'); }
+  };
+  $('docForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const box = $('docErr'); box.classList.add('hidden');
+    const url = $('docUrl').value.trim();
+    if (!/^https:\/\//i.test(url)) { box.textContent = 'Ссылка должна начинаться с https://'; box.classList.remove('hidden'); return; }
+    const r = await db.from('documents').insert({trip_id: id, doc_type: $('docType').value, title: $('docTitle').value.trim() || null, drive_url: url});
+    if (r.error) { box.textContent = 'Не удалось добавить: ' + r.error.message; box.classList.remove('hidden'); return; }
+    renderTrip(id);
+  };
+  document.querySelectorAll('[data-deldoc]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('Удалить этот документ из рейса? Файл в Google Drive останется.')) return;
+      const r = await db.from('documents').delete().eq('id', b.getAttribute('data-deldoc'));
+      if (r.error) { alert('Не удалось удалить: ' + r.error.message); return; }
+      renderTrip(id);
+    };
+  });
+}
+
+async function findOrCreate(table, name) {
+  name = String(name || '').trim();
+  if (!name) return null;
+  let r = await db.from(table).select('id').eq('name', name).maybeSingle();
+  if (r.error) throw r.error;
+  if (r.data) return r.data.id;
+  r = await db.from(table).insert({name}).select('id').single();
+  if (r.error) throw r.error;
+  return r.data.id;
+}
+
+function openNewTrip() {
+  $('modalRoot').innerHTML =
+    '<div class="overlay" id="ov"><form class="modal" id="tripForm" role="dialog" aria-label="Новый рейс"><h2>Новый рейс</h2><div id="tripErr" class="err hidden"></div>' +
+    '<div class="f2"><div><label for="nLoad">Дата загрузки</label><input id="nLoad" type="date" required></div><div><label for="nUnload">Дата выгрузки</label><input id="nUnload" type="date"></div></div>' +
+    '<div><label for="nClient">Клиент</label><input id="nClient" list="cl" placeholder="Название клиента" required><datalist id="cl">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
+    '<div><label for="nCity">Город загрузки</label><input id="nCity" placeholder="Напр. 91481 Münchsteinach"></div>' +
+    '<div><label for="nCargo">Груз</label><input id="nCargo" placeholder="Напр. Лимонад"></div>' +
+    '<div class="f2"><div><label for="nWeight">Вес, кг</label><input id="nWeight" inputmode="decimal"></div><div><label for="nPallets">Палет</label><input id="nPallets" inputmode="numeric"></div></div>' +
+    '<div class="f2"><div><label for="nIncome">Доход, €</label><input id="nIncome" inputmode="decimal"></div><div><label for="nCost">Расход, €</label><input id="nCost" inputmode="decimal"></div></div>' +
+    '<div><label for="nCarrier">Перевозчик</label><input id="nCarrier" list="ca" placeholder="Название перевозчика"><datalist id="ca">' + carriers.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
+    '<div><label for="nVehicle">Авто и водитель</label><input id="nVehicle"></div>' +
+    '<div class="acts"><button class="btn ghost" type="button" id="cancelTrip">Отмена</button><button class="btn" type="submit" id="saveTrip">Сохранить</button></div></form></div>';
+  $('cancelTrip').onclick = () => { $('modalRoot').innerHTML = ''; };
+  $('tripForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const box = $('tripErr'); box.classList.add('hidden');
+    const btn = $('saveTrip'); btn.disabled = true; btn.textContent = 'Сохраняю...';
+    try {
+      const cid = await findOrCreate('clients', $('nClient').value);
+      const kid = await findOrCreate('carriers', $('nCarrier').value);
+      const row = {
+        client_id: cid, carrier_id: kid,
+        loading_date: $('nLoad').value || null, unloading_date: $('nUnload').value || null,
+        city: $('nCity').value.trim() || null, cargo: $('nCargo').value.trim() || null,
+        weight_kg: numOrNull($('nWeight').value), pallets: numOrNull($('nPallets').value),
+        income_eur: numOrNull($('nIncome').value), cost_eur: numOrNull($('nCost').value),
+        vehicle: $('nVehicle').value.trim() || null, status: 'new'
+      };
+      const r = await db.from('trips').insert(row).select('id').single();
+      if (r.error) throw r.error;
+      $('modalRoot').innerHTML = '';
+      await loadAll();
+      location.hash = '#/trip/' + r.data.id;
+      route();
+    } catch (err) {
+      box.textContent = 'Не удалось сохранить: ' + err.message; box.classList.remove('hidden');
+      btn.disabled = false; btn.textContent = 'Сохранить';
+    }
+  };
+}
+
+function route() {
+  const h = location.hash || '#/';
+  if (h.startsWith('#/trip/')) return renderTrip(h.slice(7));
+  if (h === '#/trips') return renderTrips();
+  return renderDashboard();
+}
+
+async function enterApp() {
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('view').innerHTML = '<div class="muted">Загружаю данные...</div>';
+  try { await loadAll(); route(); }
+  catch (err) { $('view').innerHTML = '<div class="err">Не удалось загрузить данные: ' + esc(err.message) + '</div>'; }
+}
+
+function enterLogin() {
+  $('app').classList.add('hidden');
+  $('login').classList.remove('hidden');
+}
+
+$('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const box = $('loginErr'); box.classList.add('hidden');
+  const btn = $('loginBtn'); btn.disabled = true; btn.textContent = 'Входим...';
+  const r = await db.auth.signInWithPassword({email: $('email').value.trim(), password: $('password').value});
+  btn.disabled = false; btn.textContent = 'Войти';
+  if (r.error) { box.textContent = 'Не удалось войти. Проверьте email и пароль.'; box.classList.remove('hidden'); return; }
+  $('password').value = '';
+  enterApp();
+};
+
+$('logoutBtn').onclick = async () => { await db.auth.signOut(); trips = []; clients = []; carriers = []; enterLogin(); };
+window.addEventListener('hashchange', () => { if (!$('app').classList.contains('hidden') && trips.length + clients.length >= 0) route(); });
+
+(async () => {
+  const s = await db.auth.getSession();
+  if (s.data.session) enterApp(); else enterLogin();
+})();
+</script>
+</body>
+</html>
