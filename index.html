@@ -171,12 +171,13 @@ function tripStatus(t) {
 function tripsTable(rows) {
   if (!rows.length) return '<div class="pad muted">Рейсов нет</div>';
   return '<div class="scroll"><table><thead><tr>' +
-    '<th>Загрузка</th><th>Клиент</th><th>Город</th><th>Перевозчик</th><th class="r">Доход</th><th class="r">Расход</th><th class="r">Налог</th><th class="r">Чистая прибыль</th><th>Статус</th>' +
+    '<th>Загрузка</th><th>Выгрузка</th><th>Клиент</th><th>Город</th><th>Перевозчик</th><th class="r">Доход</th><th class="r">Расход</th><th class="r">Налог</th><th class="r">Чистая прибыль</th><th>Статус</th>' +
     '</tr></thead><tbody>' +
     rows.map((t) => {
       const p = net(t);
       return '<tr>' +
         '<td><a href="#/trip/' + esc(t.id) + '" style="font-weight:500">' + fdate(t.loading_date) + '</a></td>' +
+        '<td>' + fdate(t.unloading_date) + '</td>' +
         '<td>' + (t.clients ? esc(t.clients.name) : '<span class="muted">не указан</span>') + '</td>' +
         '<td>' + esc(t.city || '—') + '</td>' +
         '<td>' + esc(t.carriers ? t.carriers.name : '—') + '</td>' +
