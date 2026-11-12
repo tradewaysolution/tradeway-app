@@ -80,6 +80,22 @@ details{padding:0 20px 16px}
 summary{cursor:pointer;font-size:13px;color:var(--muted);padding:6px 0}
 pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;background:var(--bg);padding:12px;border-radius:8px}
 .search{max-width:320px}
+/* расчёты сделок */
+.tbl-sm{min-width:560px}
+.lines{min-width:1000px}
+.lines td{vertical-align:middle}
+.lines input,.lines select{padding:8px 10px}
+.lines input.num{text-align:right;min-width:90px}
+.lines td:first-child input{min-width:180px}
+.tot{min-width:0}
+.tot th,.tot td{white-space:nowrap}
+.tot td:first-child{white-space:normal;min-width:90px}
+.lines select{min-width:190px}
+.chk{display:flex;align-items:center;gap:8px;margin:0;font-weight:400;white-space:nowrap}
+.chk input{width:auto;margin:0}
+.okbox{background:var(--okbg);color:var(--ok);border-radius:8px;padding:10px 14px;font-size:13px}
+.warnbox{background:var(--warnbg);color:var(--warn);border-radius:8px;padding:10px 14px;font-size:13px;margin:16px 20px 0}
+@media (max-width:640px){.dealv .f2{grid-template-columns:1fr}.dealv .tot th,.dealv .tot td{padding-left:12px;padding-right:12px;font-size:13px}.dealv .acts{justify-content:stretch}.dealv .acts .btn{flex:1 1 auto}}
 </style>
 </head>
 <body>
@@ -110,6 +126,7 @@ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;bac
     <nav>
       <a href="#/" id="nav-home">Дашборд</a>
       <a href="#/trips" id="nav-trips">Рейсы</a>
+      <a href="#/deals" id="nav-deals">Расчёты</a>
     </nav>
     <div class="spacer"></div>
     <button class="btn ghost small" id="logoutBtn" type="button">Выйти</button>
@@ -161,6 +178,7 @@ function showError(msg) {
 function setNav(active) {
   $('nav-home').classList.toggle('active', active === 'home');
   $('nav-trips').classList.toggle('active', active === 'trips');
+  $('nav-deals').classList.toggle('active', active === 'deals');
 }
 
 function tripStatus(t) {
@@ -376,10 +394,279 @@ function openTripForm(t) {
   };
 }
 
+/* ===== Расчёты сделок ===== */
+const DEAL_STATUS = {draft: 'Черновик', active: 'Сделка', done: 'Завершена'};
+const BASIS = {fixed: 'Фиксированно', per_mark: 'За бутылку (марки)', per_sticker: 'За бутылку (стикеры)'};
+const TAX_RATES = [0.18, 0.05];
+const pct = (x) => (x == null || !isFinite(x)) ? '—' : (x * 100).toFixed(1).replace('.', ',') + '%';
+const eurFine = (n) => (n == null || !isFinite(n)) ? '—' : '€' + Number(n).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 4});
+
+// Чистая функция расчёта: не трогает страницу и базу, только считает.
+// deal: {qty_marks, qty_stickers, tax_rate, final_price}; lines: [{basis, cost_rate, sale_rate, unconfirmed}]
+function calcDeal(deal, lines) {
+  const num = (v) => { const x = Number(v); return (v == null || v === '' || !isFinite(x)) ? 0 : x; };
+  const qtyMarks = num(deal.qty_marks), qtyStickers = num(deal.qty_stickers), taxRate = num(deal.tax_rate);
+  const mult = (basis) => basis === 'per_mark' ? qtyMarks : basis === 'per_sticker' ? qtyStickers : 1;
+  const list = lines || [];
+  const rows = list.map((l) => {
+    const m = mult(l.basis);
+    const cost = num(l.cost_rate) * m, sale = num(l.sale_rate) * m;
+    return {cost: cost, sale: sale, diff: sale - cost};
+  });
+  const cost = rows.reduce((s, r) => s + r.cost, 0);
+  const calcPrice = rows.reduce((s, r) => s + r.sale, 0);
+  const fp = deal.final_price;
+  const billedPrice = (fp == null || fp === '' || !isFinite(Number(fp))) ? calcPrice : Number(fp);
+  const sum = (price) => {
+    const diff = price - cost;
+    const tax = Math.max(0, diff) * taxRate;
+    const profit = diff - tax;
+    return {price: price, cost: cost, diff: diff, tax: tax, profit: profit,
+      margin: price ? profit / price : null, perMark: qtyMarks ? price / qtyMarks : null};
+  };
+  return {rows: rows, calc: sum(calcPrice), billed: sum(billedPrice), unconfirmed: list.some((l) => !!l.unconfirmed)};
+}
+
+function dealStatusChip(st) {
+  return '<span class="chip' + (st === 'draft' ? ' warn' : '') + '">' + esc(DEAL_STATUS[st] || st) + '</span>';
+}
+
+async function renderDeals() {
+  setNav('deals');
+  const head = '<div class="top"><h1>Расчёты</h1><button class="btn" id="newDealBtn" type="button">Новый расчёт</button></div>';
+  $('view').innerHTML = head + '<div class="muted">Загружаю расчёты...</div>';
+  $('newDealBtn').onclick = (e) => createDeal(e.currentTarget);
+  const r = await db.from('deals').select('*, clients(name), deal_lines(*)').order('created_at', {ascending: false});
+  if (location.hash !== '#/deals') return;
+  if (r.error) {
+    $('view').innerHTML = head + '<div class="err">Расчёты не загрузились: ' + esc(r.error.message) + '</div>';
+  } else {
+    const rows = r.data;
+    $('view').innerHTML = head + '<div class="card">' + (!rows.length ? '<div class="pad muted">Расчётов пока нет</div>' :
+      '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Название</th><th>Клиент</th><th>Статус</th><th class="r">Цена клиенту</th><th class="r">Прибыль</th></tr></thead><tbody>' +
+      rows.map((d) => {
+        const res = calcDeal(d, d.deal_lines);
+        return '<tr><td><a href="#/deal/' + esc(d.id) + '" style="font-weight:500">' + esc(d.title || 'Без названия') + '</a></td>' +
+          '<td>' + (d.clients ? esc(d.clients.name) : '<span class="muted">не указан</span>') + '</td>' +
+          '<td>' + dealStatusChip(d.status) + '</td>' +
+          '<td class="r">' + eur(res.billed.price) + '</td>' +
+          '<td class="r ' + (res.billed.profit >= 0 ? 'pos' : 'neg') + '">' + eur(res.billed.profit) + '</td></tr>';
+      }).join('') + '</tbody></table></div>') + '</div>';
+  }
+  $('newDealBtn').onclick = (e) => createDeal(e.currentTarget);
+}
+
+async function createDeal(btn) {
+  btn.disabled = true; btn.textContent = 'Создаю...';
+  try {
+    const cat = await db.from('service_catalog').select('*').order('sort').order('name');
+    if (cat.error) throw cat.error;
+    const d = await db.from('deals').insert({title: 'Новый расчёт', status: 'draft'}).select('id').single();
+    if (d.error) throw d.error;
+    if (cat.data.length) {
+      const ins = await db.from('deal_lines').insert(cat.data.map((c, i) => ({
+        deal_id: d.data.id, name: c.name, basis: c.basis, cost_rate: c.cost_rate, sale_rate: c.sale_rate, sort: i})));
+      if (ins.error) throw ins.error;
+    }
+    location.hash = '#/deal/' + d.data.id;
+  } catch (err) {
+    showError('Не удалось создать расчёт: ' + err.message);
+    btn.disabled = false; btn.textContent = 'Новый расчёт';
+  }
+}
+
+let dealState = null;
+let lineSeq = 0;
+
+async function renderDeal(id, okMsg) {
+  setNav('deals');
+  $('view').innerHTML = '<div class="muted">Загружаю расчёт...</div>';
+  const [d, l, c] = await Promise.all([
+    db.from('deals').select('*, clients(name)').eq('id', id).maybeSingle(),
+    db.from('deal_lines').select('*').eq('deal_id', id).order('sort'),
+    db.from('service_catalog').select('*').order('sort').order('name')
+  ]);
+  if (location.hash !== '#/deal/' + id) return;
+  const back = '<a href="#/deals" style="font-size:14px;text-decoration:none">← Все расчёты</a>';
+  const e = d.error || l.error || c.error;
+  if (e) { $('view').innerHTML = '<div>' + back + '</div><div class="err">Расчёт не загрузился: ' + esc(e.message) + '</div>'; return; }
+  if (!d.data) { $('view').innerHTML = '<div>' + back + '</div><div class="err">Расчёт не найден</div>'; return; }
+  dealState = {
+    id: id,
+    deal: Object.assign({}, d.data, {client_name: d.data.clients ? d.data.clients.name : ''}),
+    lines: l.data.map((x) => Object.assign({}, x, {key: 'k' + (++lineSeq), dirty: false})),
+    removed: [],
+    catalog: c.data
+  };
+  drawDeal(okMsg);
+}
+
+function dealLineRow(l) {
+  const rate = (f, label) => '<td><input class="num" data-f="' + f + '" inputmode="decimal" value="' + (l[f] == null ? '' : esc(l[f])) + '" placeholder="—" aria-label="' + label + '"></td>';
+  return '<tr data-key="' + esc(l.key) + '">' +
+    '<td><input data-f="name" value="' + esc(l.name) + '" placeholder="Название статьи" aria-label="Название статьи"></td>' +
+    '<td><select data-f="basis" aria-label="Основа">' + Object.entries(BASIS).map(([k, v]) => '<option value="' + k + '"' + (l.basis === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></td>' +
+    rate('cost_rate', 'Ставка себестоимости') + rate('sale_rate', 'Ставка продажи') +
+    '<td class="r" data-c="cost"></td><td class="r" data-c="sale"></td><td class="r" data-c="diff"></td>' +
+    '<td><label class="chk"><input type="checkbox" data-f="unconfirmed"' + (l.unconfirmed ? ' checked' : '') + '> не подтверждено</label></td>' +
+    '<td><button class="btn ghost small" type="button" data-del>Удалить</button></td></tr>';
+}
+
+function drawDeal(okMsg) {
+  const s = dealState, d = s.deal;
+  const taxOpts = TAX_RATES.slice();
+  if (d.tax_rate != null && !taxOpts.includes(Number(d.tax_rate))) taxOpts.push(Number(d.tax_rate));
+  const val = (v) => v == null ? '' : esc(v);
+  $('view').innerHTML =
+    '<div class="dealv" style="display:flex;flex-direction:column;gap:24px">' +
+    '<div><a href="#/deals" style="font-size:14px;text-decoration:none">← Все расчёты</a>' +
+      '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><h1 style="margin:0;font-size:28px;letter-spacing:-.5px">' + esc(d.title || 'Без названия') + '</h1>' + dealStatusChip(d.status) + '</div></div>' +
+    '<div id="dealErr" class="err hidden"></div>' +
+    (okMsg ? '<div class="okbox">' + esc(okMsg) + '</div>' : '') +
+    '<div class="cols"><div class="a">' +
+      '<div class="card"><h3>Объём и условия</h3><div class="pad">' +
+        '<div><label for="dTitle">Название</label><input id="dTitle" value="' + val(d.title) + '"></div>' +
+        '<div><label for="dClient">Клиент</label><input id="dClient" list="dClientList" value="' + val(d.client_name) + '" placeholder="Название клиента"><datalist id="dClientList">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
+        '<div class="f2"><div><label for="dMarks">Бутылок под акцизные марки</label><input id="dMarks" inputmode="numeric" value="' + val(d.qty_marks) + '"></div>' +
+          '<div><label for="dStickers">Бутылок под стикеры</label><input id="dStickers" inputmode="numeric" value="' + val(d.qty_stickers) + '"></div></div>' +
+        '<div class="f2"><div><label for="dPallets">Палет</label><input id="dPallets" inputmode="numeric" value="' + val(d.pallets) + '"></div>' +
+          '<div><label for="dTax">Ставка налога</label><select id="dTax">' + taxOpts.map((t) => '<option value="' + t + '"' + (Number(d.tax_rate) === t ? ' selected' : '') + '>' + pct(t) + '</option>').join('') + '</select></div></div>' +
+      '</div></div>' +
+      '<div class="card"><h3>Статьи</h3><div class="scroll"><table class="lines"><thead><tr>' +
+        '<th>Название</th><th>Основа</th><th class="r">Ставка себестоимости, €</th><th class="r">Ставка продажи, €</th><th class="r">Себестоимость</th><th class="r">Продажа</th><th class="r">Разница</th><th>Подтверждение</th><th></th>' +
+        '</tr></thead><tbody id="dLines">' + s.lines.map(dealLineRow).join('') + '</tbody></table></div>' +
+        '<div class="pad" style="border-top:1px solid var(--line)"><div class="f2"><div><label for="addLine">Добавить строку</label><select id="addLine"><option value="">Своя строка</option>' +
+          s.catalog.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select></div>' +
+          '<div style="align-self:end"><button class="btn small" id="addLineBtn" type="button">Добавить</button></div></div></div>' +
+      '</div>' +
+    '</div><div class="b">' +
+      '<div class="card"><h3>Итог</h3><div id="dWarn"></div><div class="scroll"><table class="tot"><thead><tr><th></th><th class="r">По расчёту</th><th class="r">Выставлено</th></tr></thead><tbody id="dTot"></tbody></table></div>' +
+        '<div class="pad" style="border-top:1px solid var(--line)"><div><label for="dFinal">Выставлено клиенту, €</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
+        '<div class="sub">Если поле пустое, берётся цена по расчёту.</div></div></div>' +
+      '<div class="acts" style="justify-content:flex-start"><button class="btn" id="dSave" type="button">Сохранить</button>' +
+        (d.status === 'draft' ? '<button class="btn ghost" id="dActivate" type="button">Создать сделку</button>' : '') + '</div>' +
+    '</div></div></div>';
+
+  const bindNum = (elId, field) => { $(elId).oninput = (e) => { d[field] = numOrNull(e.target.value); updateDealCalc(); }; };
+  $('dTitle').oninput = (e) => { d.title = e.target.value; };
+  $('dClient').oninput = (e) => { d.client_name = e.target.value; };
+  bindNum('dMarks', 'qty_marks'); bindNum('dStickers', 'qty_stickers'); bindNum('dPallets', 'pallets'); bindNum('dFinal', 'final_price');
+  $('dTax').onchange = (e) => { d.tax_rate = Number(e.target.value); updateDealCalc(); };
+
+  const onLine = (e) => {
+    const tr = e.target.closest('tr[data-key]'); const f = e.target.getAttribute('data-f');
+    if (!tr || !f) return;
+    const l = s.lines.find((x) => x.key === tr.getAttribute('data-key'));
+    if (!l) return;
+    if (f === 'unconfirmed') l.unconfirmed = e.target.checked;
+    else if (f === 'cost_rate' || f === 'sale_rate') l[f] = numOrNull(e.target.value);
+    else l[f] = e.target.value;
+    l.dirty = true;
+    updateDealCalc();
+  };
+  $('dLines').addEventListener('input', onLine);
+  $('dLines').addEventListener('change', onLine);
+  $('dLines').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-del]'); if (!b) return;
+    const tr = b.closest('tr[data-key]');
+    const i = s.lines.findIndex((x) => x.key === tr.getAttribute('data-key'));
+    if (i < 0) return;
+    if (s.lines[i].id) s.removed.push(s.lines[i].id);
+    s.lines.splice(i, 1); tr.remove(); updateDealCalc();
+  });
+  $('addLineBtn').onclick = () => {
+    const c = s.catalog.find((x) => x.id === $('addLine').value);
+    const l = c ? {name: c.name, basis: c.basis, cost_rate: c.cost_rate, sale_rate: c.sale_rate}
+                : {name: '', basis: 'fixed', cost_rate: null, sale_rate: null};
+    l.unconfirmed = false; l.key = 'k' + (++lineSeq); l.dirty = true;
+    s.lines.push(l);
+    $('dLines').insertAdjacentHTML('beforeend', dealLineRow(l));
+    updateDealCalc();
+    if (!c) $('dLines').lastElementChild.querySelector('[data-f="name"]').focus();
+  };
+  $('dSave').onclick = () => saveDeal(false);
+  if ($('dActivate')) $('dActivate').onclick = () => saveDeal(true);
+  updateDealCalc();
+}
+
+function updateDealCalc() {
+  const s = dealState, res = calcDeal(s.deal, s.lines);
+  s.lines.forEach((l, i) => {
+    const tr = document.querySelector('#dLines tr[data-key="' + l.key + '"]');
+    if (!tr) return;
+    const r = res.rows[i];
+    tr.querySelector('[data-c="cost"]').textContent = l.cost_rate == null ? '—' : eur(r.cost);
+    tr.querySelector('[data-c="sale"]').textContent = l.sale_rate == null ? '—' : eur(r.sale);
+    const dc = tr.querySelector('[data-c="diff"]');
+    dc.textContent = (l.cost_rate == null && l.sale_rate == null) ? '—' : eur(r.diff);
+    dc.className = 'r ' + (r.diff >= 0 ? 'pos' : 'neg');
+  });
+  const a = res.calc, b = res.billed;
+  const line = (label, f, fmt, cls) => '<tr><td' + (cls ? ' style="font-weight:600"' : '') + '>' + label + '</td>' +
+    [a, b].map((x) => '<td class="r' + (cls ? ' ' + (x[f] >= 0 ? 'pos' : 'neg') : '') + '">' + fmt(x[f]) + '</td>').join('') + '</tr>';
+  $('dTot').innerHTML =
+    line('Цена', 'price', eur) + line('Себестоимость', 'cost', eur) + line('Разница', 'diff', eur) +
+    line('Налог (' + pct(Number(s.deal.tax_rate) || 0) + ')', 'tax', eur) + line('Прибыль', 'profit', eur, true) +
+    line('Маржа', 'margin', pct) + line('Цена за бутылку (марки)', 'perMark', eurFine);
+  $('dWarn').innerHTML = res.unconfirmed ? '<div class="warnbox">Есть строки «не подтверждено»: итог может быть неполным.</div>' : '';
+  $('dFinal').placeholder = 'Как по расчёту: ' + eur(a.price);
+}
+
+async function saveDeal(activate) {
+  const s = dealState, d = s.deal, box = $('dealErr');
+  box.classList.add('hidden');
+  const fail = (m) => { box.textContent = m; box.classList.remove('hidden'); box.scrollIntoView({block: 'center'}); };
+  const title = String(d.title || '').trim();
+  if (!title) return fail('Укажите название расчёта.');
+  for (const v of [d.qty_marks, d.qty_stickers, d.pallets]) {
+    if (v != null && !(Number.isInteger(v) && v >= 0)) return fail('Количество бутылок и палет: только целые числа без минуса.');
+  }
+  if (d.final_price != null && Number.isNaN(d.final_price)) return fail('Проверьте поле «Выставлено клиенту»: только цифры.');
+  for (const l of s.lines) {
+    if (!String(l.name || '').trim()) return fail('У каждой строки должно быть название.');
+    if ([l.cost_rate, l.sale_rate].some((x) => x != null && Number.isNaN(x))) return fail('Проверьте ставки в строке «' + l.name + '»: только цифры.');
+  }
+  const btns = [$('dSave'), $('dActivate')].filter(Boolean);
+  btns.forEach((b) => { b.disabled = true; });
+  $('dSave').textContent = 'Сохраняю...';
+  try {
+    const cid = await findOrCreate('clients', d.client_name);
+    const row = {title: title, client_id: cid, qty_marks: d.qty_marks == null ? 0 : d.qty_marks,
+      qty_stickers: d.qty_stickers == null ? 0 : d.qty_stickers, pallets: d.pallets,
+      tax_rate: Number(d.tax_rate) || 0, final_price: d.final_price};
+    if (activate) row.status = 'active';
+    let r = await db.from('deals').update(row).eq('id', s.id);
+    if (r.error) throw r.error;
+    if (s.removed.length) {
+      r = await db.from('deal_lines').delete().in('id', s.removed);
+      if (r.error) throw r.error;
+      s.removed = [];
+    }
+    const toDb = (l, i) => ({deal_id: s.id, name: String(l.name).trim(), basis: l.basis, cost_rate: l.cost_rate,
+      sale_rate: l.sale_rate, unconfirmed: !!l.unconfirmed, sort: i});
+    const upd = [], ins = [];
+    s.lines.forEach((l, i) => {
+      if (!l.id) ins.push(toDb(l, i));
+      else if (l.dirty || l.sort !== i) upd.push(Object.assign({id: l.id}, toDb(l, i)));
+    });
+    if (upd.length) { r = await db.from('deal_lines').upsert(upd); if (r.error) throw r.error; }
+    if (ins.length) { r = await db.from('deal_lines').insert(ins); if (r.error) throw r.error; }
+    const cl = await db.from('clients').select('id, name').order('name');
+    if (!cl.error) clients = cl.data;
+    await renderDeal(s.id, activate ? 'Сделка создана и сохранена.' : 'Сохранено.');
+  } catch (err) {
+    fail('Не удалось сохранить: ' + err.message);
+    btns.forEach((b) => { b.disabled = false; });
+    $('dSave').textContent = 'Сохранить';
+  }
+}
+
 function route() {
   const h = location.hash || '#/';
   if (h.startsWith('#/trip/')) return renderTrip(h.slice(7));
   if (h === '#/trips') return renderTrips();
+  if (h.startsWith('#/deal/')) return renderDeal(h.slice(7));
+  if (h === '#/deals') return renderDeals();
   return renderDashboard();
 }
 
