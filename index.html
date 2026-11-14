@@ -97,6 +97,14 @@ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;bac
 .dfields{display:flex;flex-wrap:wrap;gap:8px 10px;padding:12px 14px}
 .dfields>div{flex:1 1 68px;min-width:0}
 .dfields>.w{flex:2 1 120px}
+.dfields>.dt{flex:1 1 130px}
+.period{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--field);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{padding:8px 12px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;border:0;border-left:1px solid var(--line);cursor:pointer}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--navy);color:#fff;font-weight:500}
+.period .rng{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.period .rng input{width:auto;padding:7px 8px;font-size:13px}
 .dfields label{font-size:11px;color:var(--muted);font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dfields input,.dfields select{padding:6px 8px;font-size:13px;border-radius:6px}
 /* плотная таблица строк; прокручивается только она */
@@ -200,17 +208,36 @@ async function loadAll() {
 let deals = [], dealsErr = null, dealsLoadedAt = 0;
 async function loadDeals() {
   const r = await db.from('deals')
-    .select('id, client_id, status, tax_rate, final_price, qty_marks, qty_stickers, clients(name), deal_lines(basis, cost_rate, sale_rate)')
+    .select('id, client_id, status, tax_rate, final_price, qty_marks, qty_stickers, start_date, clients(name), deal_lines(basis, cost_rate, sale_rate)')
     .in('status', ['active', 'done']);
   if (r.error) { deals = []; dealsErr = r.error.message; } else { deals = r.data; dealsErr = null; }
   dealsLoadedAt = Date.now();
 }
 
+// Период дашборда (по дате загрузки). range = null — «Всё время»; иначе {from, to} в виде 'ГГГГ-ММ-ДД', любая граница может быть пустой.
+// Запись без даты попадает только во «Всё время».
+const iso = (dt) => dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+function periodRange(p, today) {
+  const t = today || new Date();
+  if (p.mode === 'month') return {from: iso(new Date(t.getFullYear(), t.getMonth(), 1)), to: iso(new Date(t.getFullYear(), t.getMonth() + 1, 0))};
+  if (p.mode === 'year') return {from: t.getFullYear() + '-01-01', to: t.getFullYear() + '-12-31'};
+  if (p.mode === 'custom') return {from: p.from || null, to: p.to || null};
+  return null;
+}
+function inRange(date, range) {
+  if (!range) return true;
+  if (!date) return false;
+  const d = String(date).slice(0, 10);
+  return !(range.from && d < range.from) && !(range.to && d > range.to);
+}
+
 // Чистая функция итогов дашборда: рейсы + сделки (active/done), без обращения к странице и базе.
-// Рейс с deal_id, чья сделка учтена, в сумму не идёт: его объём уже посчитан в сделке.
-function dashboardTotals(tripRows, dealRows) {
-  const counted = (dealRows || []).filter((d) => d.status === 'active' || d.status === 'done');
-  const countedIds = new Set(counted.map((d) => d.id));
+// Рейс с deal_id, чья сделка учтена, в сумму не идёт: его объём уже посчитан в сделке (по дате сделки).
+function dashboardTotals(tripRows, dealRows, range) {
+  const allCounted = (dealRows || []).filter((d) => d.status === 'active' || d.status === 'done');
+  const countedIds = new Set(allCounted.map((d) => d.id));
+  const counted = allCounted.filter((d) => inRange(d.start_date, range));
+  const periodTrips = (tripRows || []).filter((t) => inRange(t.loading_date, range));
   const groups = new Map();
   const tot = {income: 0, cost: 0, tax: 0};
   const add = (clientId, clientName, income, cost, tax) => {
@@ -221,7 +248,7 @@ function dashboardTotals(tripRows, dealRows) {
     g.income += income; g.cost += cost; g.tax += tax;
   };
   let tripsUsed = 0;
-  (tripRows || []).forEach((t) => {
+  periodTrips.forEach((t) => {
     if (t.deal_id && countedIds.has(t.deal_id)) return;
     tripsUsed++;
     add(t.client_id, t.clients && t.clients.name, Number(t.income_eur) || 0, Number(t.cost_eur) || 0, Number(t.tax_eur) || 0);
@@ -232,7 +259,7 @@ function dashboardTotals(tripRows, dealRows) {
   });
   const fin = (x) => Object.assign(x, {profit: x.income - x.cost - x.tax, margin: x.income ? (x.income - x.cost - x.tax) / x.income : null});
   const byClient = Array.from(groups.values()).map(fin).sort((a, b) => b.profit - a.profit);
-  return Object.assign(fin(tot), {dealsCount: counted.length, tripsUsed: tripsUsed, byClient: byClient});
+  return Object.assign(fin(tot), {dealsCount: counted.length, tripsCount: periodTrips.length, tripsUsed: tripsUsed, byClient: byClient});
 }
 
 const profit = (t) => (Number(t.income_eur) || 0) - (Number(t.cost_eur) || 0);
@@ -276,22 +303,32 @@ function tripsTable(rows) {
     }).join('') + '</tbody></table></div>';
 }
 
+let dashPeriod = {mode: 'all', from: '', to: ''};
+const PERIODS = [['all', 'Всё время'], ['month', 'Этот месяц'], ['year', 'Этот год'], ['custom', 'Свои даты']];
+
 function renderDashboard(fresh) {
   setNav('home');
-  const tot = dashboardTotals(trips, deals);
+  const range = periodRange(dashPeriod);
+  const tot = dashboardTotals(trips, deals, range);
   const inc = tot.income, tax = tot.tax, pr = tot.profit;
   const margin = inc > 0 ? (pr / inc * 100) : 0;
   const noClient = trips.filter((t) => !t.clients).length;
+  const periodNote = !range ? '' : ' · период: ' + (range.from ? fdate(range.from) : '…') + ' — ' + (range.to ? fdate(range.to) : '…') + ', записи без даты загрузки не входят';
   $('view').innerHTML =
-    '<div class="top" id="dashTop"><div><h1>Дашборд</h1><div class="sub">Рейсы и сделки (без черновиков). Чистая прибыль: доход минус расход минус налог</div></div>' +
+    '<div class="top" id="dashTop"><div><h1>Дашборд</h1><div class="sub">Рейсы и сделки (без черновиков). Чистая прибыль: доход минус расход минус налог' + periodNote + '</div></div>' +
     '<button class="btn" id="newTripBtn" type="button">Новый рейс</button></div>' +
+    '<div class="period"><div class="seg" role="group" aria-label="Период по дате загрузки">' +
+      PERIODS.map(([k, v]) => '<button type="button" data-p="' + k + '" aria-pressed="' + (dashPeriod.mode === k) + '">' + v + '</button>').join('') + '</div>' +
+      (dashPeriod.mode === 'custom' ? '<div class="rng"><label for="pFrom">с</label><input type="date" id="pFrom" value="' + esc(dashPeriod.from) + '">' +
+        '<label for="pTo">по</label><input type="date" id="pTo" value="' + esc(dashPeriod.to) + '"></div>' : '') +
+    '</div>' +
     (dealsErr ? '<div class="err">Сделки не загрузились, на дашборде только рейсы: ' + esc(dealsErr) + '</div>' : '') +
     '<div class="metrics">' +
       '<div class="metric"><div class="l">Доход</div><div class="v">' + eur(inc) + '</div></div>' +
       '<div class="metric"><div class="l">Налоги</div><div class="v">' + eur(tax) + '</div></div>' +
       '<div class="metric"><div class="l">Чистая прибыль</div><div class="v ' + (pr >= 0 ? 'pos' : 'neg') + '">' + eur(pr) + '</div></div>' +
       '<div class="metric"><div class="l">Маржа</div><div class="v">' + margin.toFixed(1).replace('.', ',') + '%</div></div>' +
-      '<div class="metric"><div class="l">Рейсов</div><div class="v">' + trips.length + '</div></div>' +
+      '<div class="metric"><div class="l">Рейсов</div><div class="v">' + tot.tripsCount + '</div></div>' +
       '<div class="metric"><div class="l">Сделок</div><div class="v">' + tot.dealsCount + '</div></div>' +
     '</div>' +
     (noClient ? '<div class="card"><div class="row"><div><strong>У ' + noClient + ' рейсов не указан клиент.</strong><div class="sub">Откройте рейс и назначьте клиента, тогда он появится в отчётах по клиентам.</div></div><a class="btn ghost small" href="#/trips" style="text-decoration:none">Показать рейсы</a></div></div>' : '') +
@@ -304,6 +341,13 @@ function renderDashboard(fresh) {
       '</tbody></table></div>') + '</div>' +
     '<div class="card"><h3>Последние рейсы</h3>' + tripsTable(trips.slice(0, 8)) + '</div>';
   $('newTripBtn').onclick = openNewTrip;
+  document.querySelectorAll('.seg [data-p]').forEach((b) => {
+    b.onclick = () => { dashPeriod.mode = b.getAttribute('data-p'); renderDashboard(true); };
+  });
+  if ($('pFrom')) {
+    $('pFrom').onchange = (e) => { dashPeriod.from = e.target.value; renderDashboard(true); };
+    $('pTo').onchange = (e) => { dashPeriod.to = e.target.value; renderDashboard(true); };
+  }
   // Сделки могли измениться на экране «Расчёты»: подгружаем свежие и перерисовываем один раз.
   if (!fresh && Date.now() - dealsLoadedAt > 3000) {
     loadDeals().then(() => { if ($('dashTop')) renderDashboard(true); });
@@ -478,6 +522,7 @@ function openTripForm(t) {
 const DEAL_STATUS = {draft: 'Черновик', active: 'Сделка', done: 'Завершена'};
 const BASIS = {fixed: 'Фиксированно', per_mark: 'За бутылку (марки)', per_sticker: 'За бутылку (стикеры)'};
 const TAX_RATES = [0.18, 0.05];
+const COMPANIES = ['ТОВ TradeWay', 'ФОП Эльнур'];
 const pct = (x) => (x == null || !isFinite(x)) ? '—' : (x * 100).toFixed(1).replace('.', ',') + '%';
 const eurFine = (n) => (n == null || !isFinite(n)) ? '—' : '€' + Number(n).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 4});
 
@@ -511,6 +556,16 @@ function dealStatusChip(st) {
   return '<span class="chip' + (st === 'draft' ? ' warn' : '') + '">' + esc(DEAL_STATUS[st] || st) + '</span>';
 }
 
+// Новые загрузки сверху; расчёты без даты в конце, среди них новее созданные выше.
+function sortDealsByStart(rows) {
+  return (rows || []).slice().sort((a, b) => {
+    const da = a.start_date ? String(a.start_date).slice(0, 10) : '', dbb = b.start_date ? String(b.start_date).slice(0, 10) : '';
+    if (da !== dbb) { if (!da) return 1; if (!dbb) return -1; return da < dbb ? 1 : -1; }
+    const ca = String(a.created_at || ''), cb = String(b.created_at || '');
+    return ca === cb ? 0 : (ca < cb ? 1 : -1);
+  });
+}
+
 async function renderDeals() {
   setNav('deals');
   const head = '<div class="top"><h1>Расчёты</h1><button class="btn" id="newDealBtn" type="button">Новый расчёт</button></div>';
@@ -521,13 +576,15 @@ async function renderDeals() {
   if (r.error) {
     $('view').innerHTML = head + '<div class="err">Расчёты не загрузились: ' + esc(r.error.message) + '</div>';
   } else {
-    const rows = r.data;
+    const rows = sortDealsByStart(r.data);
     $('view').innerHTML = head + '<div class="card">' + (!rows.length ? '<div class="pad muted">Расчётов пока нет</div>' :
-      '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Название</th><th>Клиент</th><th>Статус</th><th class="r">Цена клиенту</th><th class="r">Прибыль</th></tr></thead><tbody>' +
+      '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Название</th><th>Клиент</th><th>Загрузка</th><th>Выгрузка</th><th>Статус</th><th class="r">Цена клиенту</th><th class="r">Прибыль</th></tr></thead><tbody>' +
       rows.map((d) => {
         const res = calcDeal(d, d.deal_lines);
         return '<tr><td><a href="#/deal/' + esc(d.id) + '" style="font-weight:500">' + esc(d.title || 'Без названия') + '</a></td>' +
           '<td>' + (d.clients ? esc(d.clients.name) : '<span class="muted">не указан</span>') + '</td>' +
+          '<td style="white-space:nowrap">' + fdate(d.start_date) + '</td>' +
+          '<td style="white-space:nowrap">' + fdate(d.end_date) + '</td>' +
           '<td>' + dealStatusChip(d.status) + '</td>' +
           '<td class="r">' + eur(res.billed.price) + '</td>' +
           '<td class="r ' + (res.billed.profit >= 0 ? 'pos' : 'neg') + '">' + eur(res.billed.profit) + '</td></tr>';
@@ -597,6 +654,8 @@ function drawDeal(okMsg) {
   const taxOpts = TAX_RATES.slice();
   if (d.tax_rate != null && !taxOpts.includes(Number(d.tax_rate))) taxOpts.push(Number(d.tax_rate));
   const val = (v) => v == null ? '' : esc(v);
+  const compOpts = COMPANIES.slice();
+  if (d.company && !compOpts.includes(d.company)) compOpts.push(d.company);
   $('view').innerHTML =
     '<div class="dealv">' +
     '<div class="deal-head"><a href="#/deals" style="font-size:14px;text-decoration:none">← Все расчёты</a>' +
@@ -612,6 +671,10 @@ function drawDeal(okMsg) {
         '<div><label for="dPallets">Палет</label><input id="dPallets" inputmode="numeric" value="' + val(d.pallets) + '"></div>' +
         '<div><label for="dTax">Налог</label><select id="dTax">' + taxOpts.map((t) => '<option value="' + t + '"' + (Number(d.tax_rate) === t ? ' selected' : '') + '>' + pct(t) + '</option>').join('') + '</select></div>' +
         '<div><label for="dFinal" title="Итоговая цена клиенту. Если пусто, берётся цена по расчёту">Выставлено, €</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
+        '<div class="dt"><label for="dStart">Загрузка</label><input id="dStart" type="date" value="' + val(d.start_date) + '"></div>' +
+        '<div class="dt"><label for="dEnd" title="Выгрузка на складе">Выгрузка на складе</label><input id="dEnd" type="date" value="' + val(d.end_date) + '"></div>' +
+        '<div class="w"><label for="dCompany">Компания</label><select id="dCompany"><option value="">— не выбрана —</option>' +
+          compOpts.map((c) => '<option value="' + esc(c) + '"' + (d.company === c ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>' +
       '</div></section>' +
       '<section class="card" aria-label="Статьи расчёта"><div class="lines-wrap"><table class="lines"><thead><tr>' +
         '<th>Статья</th><th>Основа</th><th class="r" title="Ставка себестоимости">Себест./ед., €</th><th class="r" title="Ставка продажи">Продажа/ед., €</th><th class="r">Себестоимость</th><th class="r">Продажа</th><th class="r">Разница</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
@@ -632,6 +695,9 @@ function drawDeal(okMsg) {
   $('dClient').oninput = (e) => { d.client_name = e.target.value; };
   bindNum('dMarks', 'qty_marks'); bindNum('dStickers', 'qty_stickers'); bindNum('dPallets', 'pallets'); bindNum('dFinal', 'final_price');
   $('dTax').onchange = (e) => { d.tax_rate = Number(e.target.value); updateDealCalc(); };
+  $('dStart').onchange = (e) => { d.start_date = e.target.value || null; };
+  $('dEnd').onchange = (e) => { d.end_date = e.target.value || null; };
+  $('dCompany').onchange = (e) => { d.company = e.target.value || null; };
 
   const onLine = (e) => {
     const tr = e.target.closest('tr[data-key]'); const f = e.target.getAttribute('data-f');
@@ -702,6 +768,7 @@ async function saveDeal(activate) {
     if (v != null && !(Number.isInteger(v) && v >= 0)) return fail('Количество бутылок и палет: только целые числа без минуса.');
   }
   if (d.final_price != null && Number.isNaN(d.final_price)) return fail('Проверьте поле «Выставлено клиенту»: только цифры.');
+  if (d.start_date && d.end_date && d.end_date < d.start_date) return fail('Дата выгрузки на складе раньше даты загрузки. Проверьте даты.');
   for (const l of s.lines) {
     if (!String(l.name || '').trim()) return fail('У каждой строки должно быть название.');
     if ([l.cost_rate, l.sale_rate].some((x) => x != null && Number.isNaN(x))) return fail('Проверьте ставки в строке «' + l.name + '»: только цифры.');
@@ -713,7 +780,8 @@ async function saveDeal(activate) {
     const cid = await findOrCreate('clients', d.client_name);
     const row = {title: title, client_id: cid, qty_marks: d.qty_marks == null ? 0 : d.qty_marks,
       qty_stickers: d.qty_stickers == null ? 0 : d.qty_stickers, pallets: d.pallets,
-      tax_rate: Number(d.tax_rate) || 0, final_price: d.final_price};
+      tax_rate: Number(d.tax_rate) || 0, final_price: d.final_price,
+      start_date: d.start_date || null, end_date: d.end_date || null, company: d.company || null};
     if (activate) row.status = 'active';
     let r = await db.from('deals').update(row).eq('id', s.id);
     if (r.error) throw r.error;
