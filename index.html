@@ -82,20 +82,49 @@ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;bac
 .search{max-width:320px}
 /* расчёты сделок */
 .tbl-sm{min-width:560px}
-.lines{min-width:1000px}
-.lines td{vertical-align:middle}
-.lines input,.lines select{padding:8px 10px}
-.lines input.num{text-align:right;min-width:90px}
-.lines td:first-child input{min-width:180px}
-.tot{min-width:0}
-.tot th,.tot td{white-space:nowrap}
-.tot td:first-child{white-space:normal;min-width:90px}
-.lines select{min-width:190px}
-.chk{display:flex;align-items:center;gap:8px;margin:0;font-weight:400;white-space:nowrap}
-.chk input{width:auto;margin:0}
-.okbox{background:var(--okbg);color:var(--ok);border-radius:8px;padding:10px 14px;font-size:13px}
-.warnbox{background:var(--warnbg);color:var(--warn);border-radius:8px;padding:10px 14px;font-size:13px;margin:16px 20px 0}
-@media (max-width:640px){.dealv .f2{grid-template-columns:1fr}.dealv .tot th,.dealv .tot td{padding-left:12px;padding-right:12px;font-size:13px}.dealv .acts{justify-content:stretch}.dealv .acts .btn{flex:1 1 auto}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.okbox{background:var(--okbg);color:var(--ok);border-radius:8px;padding:8px 12px;font-size:13px}
+.warnbox{background:var(--warnbg);color:var(--warn);border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.4}
+.dealv{display:flex;flex-direction:column;gap:14px}
+.deal-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.deal-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.3px}
+.deal-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.deal-left{display:flex;flex-direction:column;gap:14px;min-width:0}
+.deal-side{position:sticky;top:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.deal-side #dWarn:empty{display:none}
+.card h3.sm{padding:10px 14px;font-size:14px}
+/* условия: одна компактная строка полей */
+.dfields{display:flex;flex-wrap:wrap;gap:8px 10px;padding:12px 14px}
+.dfields>div{flex:1 1 68px;min-width:0}
+.dfields>.w{flex:2 1 120px}
+.dfields label{font-size:11px;color:var(--muted);font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dfields input,.dfields select{padding:6px 8px;font-size:13px;border-radius:6px}
+/* плотная таблица строк; прокручивается только она */
+.lines-wrap{max-height:calc(100vh - 290px);min-height:200px;overflow:auto}
+.lines{min-width:720px;font-size:13px}
+.lines th{position:sticky;top:0;z-index:1;background:var(--card);padding:7px 5px;font-size:11px;box-shadow:inset 0 -1px 0 var(--line);line-height:1.25}
+.lines td{padding:3px 5px;vertical-align:middle;border-top:0;border-bottom:1px solid var(--line)}
+.lines th:first-child,.lines td:first-child{padding-left:12px}
+.lines th:last-child,.lines td:last-child{padding-right:8px}
+.lines td.r{white-space:nowrap}
+.lines input,.lines select{padding:4px 6px;font-size:13px;border-radius:6px;border-color:var(--line)}
+.lines input:focus,.lines select:focus{border-color:var(--field)}
+.lines input[data-f="name"]{min-width:110px}
+.lines select{width:158px}
+.lines input.num{width:64px;text-align:right}
+.lines input[type=checkbox]{width:16px;height:16px;margin:0;vertical-align:middle}
+.lines .x{border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}
+.lines .x:hover{background:var(--bg);color:#9B1C1C}
+.addrow{display:flex;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line)}
+.addrow select{flex:1 1 auto;width:auto;min-width:0;padding:6px 8px;font-size:13px;border-radius:6px}
+/* панель «Итог» */
+.tot{min-width:0;font-size:13px}
+.tot th,.tot td{white-space:nowrap;padding:6px 8px}
+.tot th:first-child,.tot td:first-child{padding-left:14px;white-space:normal}
+.tot th:last-child,.tot td:last-child{padding-right:14px}
+.side-acts{display:flex;gap:8px;flex-wrap:wrap}
+.side-acts .btn{flex:1 1 auto}
+@media (max-width:900px){.deal-grid{grid-template-columns:minmax(0,1fr)}.deal-side{position:static}.lines-wrap{max-height:60vh}}
 </style>
 </head>
 <body>
@@ -508,8 +537,8 @@ function dealLineRow(l) {
     '<td><select data-f="basis" aria-label="Основа">' + Object.entries(BASIS).map(([k, v]) => '<option value="' + k + '"' + (l.basis === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></td>' +
     rate('cost_rate', 'Ставка себестоимости') + rate('sale_rate', 'Ставка продажи') +
     '<td class="r" data-c="cost"></td><td class="r" data-c="sale"></td><td class="r" data-c="diff"></td>' +
-    '<td><label class="chk"><input type="checkbox" data-f="unconfirmed"' + (l.unconfirmed ? ' checked' : '') + '> не подтверждено</label></td>' +
-    '<td><button class="btn ghost small" type="button" data-del>Удалить</button></td></tr>';
+    '<td style="text-align:center"><input type="checkbox" data-f="unconfirmed"' + (l.unconfirmed ? ' checked' : '') + ' aria-label="Не подтверждено" title="Не подтверждено"></td>' +
+    '<td><button class="x" type="button" data-del aria-label="Удалить строку" title="Удалить строку">×</button></td></tr>';
 }
 
 function drawDeal(okMsg) {
@@ -518,34 +547,34 @@ function drawDeal(okMsg) {
   if (d.tax_rate != null && !taxOpts.includes(Number(d.tax_rate))) taxOpts.push(Number(d.tax_rate));
   const val = (v) => v == null ? '' : esc(v);
   $('view').innerHTML =
-    '<div class="dealv" style="display:flex;flex-direction:column;gap:24px">' +
-    '<div><a href="#/deals" style="font-size:14px;text-decoration:none">← Все расчёты</a>' +
-      '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><h1 style="margin:0;font-size:28px;letter-spacing:-.5px">' + esc(d.title || 'Без названия') + '</h1>' + dealStatusChip(d.status) + '</div></div>' +
+    '<div class="dealv">' +
+    '<div class="deal-head"><a href="#/deals" style="font-size:14px;text-decoration:none">← Все расчёты</a>' +
+      '<h1>' + esc(d.title || 'Без названия') + '</h1>' + dealStatusChip(d.status) + '</div>' +
     '<div id="dealErr" class="err hidden"></div>' +
     (okMsg ? '<div class="okbox">' + esc(okMsg) + '</div>' : '') +
-    '<div class="cols"><div class="a">' +
-      '<div class="card"><h3>Объём и условия</h3><div class="pad">' +
-        '<div><label for="dTitle">Название</label><input id="dTitle" value="' + val(d.title) + '"></div>' +
-        '<div><label for="dClient">Клиент</label><input id="dClient" list="dClientList" value="' + val(d.client_name) + '" placeholder="Название клиента"><datalist id="dClientList">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
-        '<div class="f2"><div><label for="dMarks">Бутылок под акцизные марки</label><input id="dMarks" inputmode="numeric" value="' + val(d.qty_marks) + '"></div>' +
-          '<div><label for="dStickers">Бутылок под стикеры</label><input id="dStickers" inputmode="numeric" value="' + val(d.qty_stickers) + '"></div></div>' +
-        '<div class="f2"><div><label for="dPallets">Палет</label><input id="dPallets" inputmode="numeric" value="' + val(d.pallets) + '"></div>' +
-          '<div><label for="dTax">Ставка налога</label><select id="dTax">' + taxOpts.map((t) => '<option value="' + t + '"' + (Number(d.tax_rate) === t ? ' selected' : '') + '>' + pct(t) + '</option>').join('') + '</select></div></div>' +
-      '</div></div>' +
-      '<div class="card"><h3>Статьи</h3><div class="scroll"><table class="lines"><thead><tr>' +
-        '<th>Название</th><th>Основа</th><th class="r">Ставка себестоимости, €</th><th class="r">Ставка продажи, €</th><th class="r">Себестоимость</th><th class="r">Продажа</th><th class="r">Разница</th><th>Подтверждение</th><th></th>' +
+    '<div class="deal-grid"><div class="deal-left">' +
+      '<section class="card" aria-label="Объём и условия"><div class="dfields">' +
+        '<div class="w"><label for="dTitle">Название</label><input id="dTitle" value="' + val(d.title) + '"></div>' +
+        '<div class="w"><label for="dClient">Клиент</label><input id="dClient" list="dClientList" value="' + val(d.client_name) + '" placeholder="Название клиента"><datalist id="dClientList">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
+        '<div><label for="dMarks" title="Бутылок под акцизные марки">Бут. под марки</label><input id="dMarks" inputmode="numeric" value="' + val(d.qty_marks) + '"></div>' +
+        '<div><label for="dStickers" title="Бутылок под стикеры">Бут. под стикеры</label><input id="dStickers" inputmode="numeric" value="' + val(d.qty_stickers) + '"></div>' +
+        '<div><label for="dPallets">Палет</label><input id="dPallets" inputmode="numeric" value="' + val(d.pallets) + '"></div>' +
+        '<div><label for="dTax">Налог</label><select id="dTax">' + taxOpts.map((t) => '<option value="' + t + '"' + (Number(d.tax_rate) === t ? ' selected' : '') + '>' + pct(t) + '</option>').join('') + '</select></div>' +
+        '<div><label for="dFinal" title="Итоговая цена клиенту. Если пусто, берётся цена по расчёту">Выставлено, €</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
+      '</div></section>' +
+      '<section class="card" aria-label="Статьи расчёта"><div class="lines-wrap"><table class="lines"><thead><tr>' +
+        '<th>Статья</th><th>Основа</th><th class="r" title="Ставка себестоимости">Себест./ед., €</th><th class="r" title="Ставка продажи">Продажа/ед., €</th><th class="r">Себестоимость</th><th class="r">Продажа</th><th class="r">Разница</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
         '</tr></thead><tbody id="dLines">' + s.lines.map(dealLineRow).join('') + '</tbody></table></div>' +
-        '<div class="pad" style="border-top:1px solid var(--line)"><div class="f2"><div><label for="addLine">Добавить строку</label><select id="addLine"><option value="">Своя строка</option>' +
-          s.catalog.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select></div>' +
-          '<div style="align-self:end"><button class="btn small" id="addLineBtn" type="button">Добавить</button></div></div></div>' +
-      '</div>' +
-    '</div><div class="b">' +
-      '<div class="card"><h3>Итог</h3><div id="dWarn"></div><div class="scroll"><table class="tot"><thead><tr><th></th><th class="r">По расчёту</th><th class="r">Выставлено</th></tr></thead><tbody id="dTot"></tbody></table></div>' +
-        '<div class="pad" style="border-top:1px solid var(--line)"><div><label for="dFinal">Выставлено клиенту, €</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
-        '<div class="sub">Если поле пустое, берётся цена по расчёту.</div></div></div>' +
-      '<div class="acts" style="justify-content:flex-start"><button class="btn" id="dSave" type="button">Сохранить</button>' +
+        '<div class="addrow"><label for="addLine" class="sr">Добавить строку</label><select id="addLine"><option value="">Своя строка</option>' +
+          s.catalog.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select>' +
+          '<button class="btn small" id="addLineBtn" type="button">+ Добавить строку</button></div>' +
+      '</section>' +
+    '</div><aside class="deal-side">' +
+      '<div class="card"><h3 class="sm">Итог</h3><div class="scroll"><table class="tot"><thead><tr><th></th><th class="r">По расчёту</th><th class="r">Выставлено</th></tr></thead><tbody id="dTot"></tbody></table></div></div>' +
+      '<div id="dWarn"></div>' +
+      '<div class="side-acts"><button class="btn" id="dSave" type="button">Сохранить</button>' +
         (d.status === 'draft' ? '<button class="btn ghost" id="dActivate" type="button">Создать сделку</button>' : '') + '</div>' +
-    '</div></div></div>';
+    '</aside></div></div>';
 
   const bindNum = (elId, field) => { $(elId).oninput = (e) => { d[field] = numOrNull(e.target.value); updateDealCalc(); }; };
   $('dTitle').oninput = (e) => { d.title = e.target.value; };
@@ -609,7 +638,7 @@ function updateDealCalc() {
     line('Налог (' + pct(Number(s.deal.tax_rate) || 0) + ')', 'tax', eur) + line('Прибыль', 'profit', eur, true) +
     line('Маржа', 'margin', pct) + line('Цена за бутылку (марки)', 'perMark', eurFine);
   $('dWarn').innerHTML = res.unconfirmed ? '<div class="warnbox">Есть строки «не подтверждено»: итог может быть неполным.</div>' : '';
-  $('dFinal').placeholder = 'Как по расчёту: ' + eur(a.price);
+  $('dFinal').placeholder = eur(a.price);
 }
 
 async function saveDeal(activate) {
