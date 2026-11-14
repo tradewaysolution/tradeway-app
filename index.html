@@ -193,6 +193,46 @@ async function loadAll() {
   if (c.error) throw c.error;
   if (k.error) throw k.error;
   trips = t.data; clients = c.data; carriers = k.data;
+  await loadDeals();
+}
+
+// Сделки для дашборда: только active и done. Ошибка не ломает дашборд, а показывается плашкой.
+let deals = [], dealsErr = null, dealsLoadedAt = 0;
+async function loadDeals() {
+  const r = await db.from('deals')
+    .select('id, client_id, status, tax_rate, final_price, qty_marks, qty_stickers, clients(name), deal_lines(basis, cost_rate, sale_rate)')
+    .in('status', ['active', 'done']);
+  if (r.error) { deals = []; dealsErr = r.error.message; } else { deals = r.data; dealsErr = null; }
+  dealsLoadedAt = Date.now();
+}
+
+// Чистая функция итогов дашборда: рейсы + сделки (active/done), без обращения к странице и базе.
+// Рейс с deal_id, чья сделка учтена, в сумму не идёт: его объём уже посчитан в сделке.
+function dashboardTotals(tripRows, dealRows) {
+  const counted = (dealRows || []).filter((d) => d.status === 'active' || d.status === 'done');
+  const countedIds = new Set(counted.map((d) => d.id));
+  const groups = new Map();
+  const tot = {income: 0, cost: 0, tax: 0};
+  const add = (clientId, clientName, income, cost, tax) => {
+    tot.income += income; tot.cost += cost; tot.tax += tax;
+    const key = clientId || '';
+    if (!groups.has(key)) groups.set(key, {name: clientId ? (clientName || 'Без названия') : 'Без клиента', noClient: !clientId, income: 0, cost: 0, tax: 0});
+    const g = groups.get(key);
+    g.income += income; g.cost += cost; g.tax += tax;
+  };
+  let tripsUsed = 0;
+  (tripRows || []).forEach((t) => {
+    if (t.deal_id && countedIds.has(t.deal_id)) return;
+    tripsUsed++;
+    add(t.client_id, t.clients && t.clients.name, Number(t.income_eur) || 0, Number(t.cost_eur) || 0, Number(t.tax_eur) || 0);
+  });
+  counted.forEach((d) => {
+    const b = calcDeal(d, d.deal_lines).billed;
+    add(d.client_id, d.clients && d.clients.name, b.price, b.cost, b.tax);
+  });
+  const fin = (x) => Object.assign(x, {profit: x.income - x.cost - x.tax, margin: x.income ? (x.income - x.cost - x.tax) / x.income : null});
+  const byClient = Array.from(groups.values()).map(fin).sort((a, b) => b.profit - a.profit);
+  return Object.assign(fin(tot), {dealsCount: counted.length, tripsUsed: tripsUsed, byClient: byClient});
 }
 
 const profit = (t) => (Number(t.income_eur) || 0) - (Number(t.cost_eur) || 0);
@@ -236,27 +276,38 @@ function tripsTable(rows) {
     }).join('') + '</tbody></table></div>';
 }
 
-function renderDashboard() {
+function renderDashboard(fresh) {
   setNav('home');
-  const inc = trips.reduce((s, t) => s + (Number(t.income_eur) || 0), 0);
-  const cost = trips.reduce((s, t) => s + (Number(t.cost_eur) || 0), 0);
-  const tax = trips.reduce((s, t) => s + taxOf(t), 0);
-  const pr = inc - cost - tax;
+  const tot = dashboardTotals(trips, deals);
+  const inc = tot.income, tax = tot.tax, pr = tot.profit;
   const margin = inc > 0 ? (pr / inc * 100) : 0;
   const noClient = trips.filter((t) => !t.clients).length;
   $('view').innerHTML =
-    '<div class="top"><div><h1>Дашборд</h1><div class="sub">Чистая прибыль: доход минус расход минус налог</div></div>' +
+    '<div class="top" id="dashTop"><div><h1>Дашборд</h1><div class="sub">Рейсы и сделки (без черновиков). Чистая прибыль: доход минус расход минус налог</div></div>' +
     '<button class="btn" id="newTripBtn" type="button">Новый рейс</button></div>' +
+    (dealsErr ? '<div class="err">Сделки не загрузились, на дашборде только рейсы: ' + esc(dealsErr) + '</div>' : '') +
     '<div class="metrics">' +
       '<div class="metric"><div class="l">Доход</div><div class="v">' + eur(inc) + '</div></div>' +
       '<div class="metric"><div class="l">Налоги</div><div class="v">' + eur(tax) + '</div></div>' +
-      '<div class="metric"><div class="l">Чистая прибыль</div><div class="v pos">' + eur(pr) + '</div></div>' +
+      '<div class="metric"><div class="l">Чистая прибыль</div><div class="v ' + (pr >= 0 ? 'pos' : 'neg') + '">' + eur(pr) + '</div></div>' +
       '<div class="metric"><div class="l">Маржа</div><div class="v">' + margin.toFixed(1).replace('.', ',') + '%</div></div>' +
       '<div class="metric"><div class="l">Рейсов</div><div class="v">' + trips.length + '</div></div>' +
+      '<div class="metric"><div class="l">Сделок</div><div class="v">' + tot.dealsCount + '</div></div>' +
     '</div>' +
     (noClient ? '<div class="card"><div class="row"><div><strong>У ' + noClient + ' рейсов не указан клиент.</strong><div class="sub">Откройте рейс и назначьте клиента, тогда он появится в отчётах по клиентам.</div></div><a class="btn ghost small" href="#/trips" style="text-decoration:none">Показать рейсы</a></div></div>' : '') +
+    '<div class="card"><h3>Прибыль по клиентам</h3>' + (!tot.byClient.length ? '<div class="pad muted">Данных пока нет</div>' :
+      '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Клиент</th><th class="r">Доход</th><th class="r">Чистая прибыль</th><th class="r">Маржа</th></tr></thead><tbody>' +
+      tot.byClient.map((g) => '<tr><td>' + (g.noClient ? '<span class="muted">Без клиента</span>' : esc(g.name)) + '</td>' +
+        '<td class="r">' + eur(g.income) + '</td>' +
+        '<td class="r ' + (g.profit >= 0 ? 'pos' : 'neg') + '">' + eur(g.profit) + '</td>' +
+        '<td class="r">' + pct(g.margin) + '</td></tr>').join('') +
+      '</tbody></table></div>') + '</div>' +
     '<div class="card"><h3>Последние рейсы</h3>' + tripsTable(trips.slice(0, 8)) + '</div>';
   $('newTripBtn').onclick = openNewTrip;
+  // Сделки могли измениться на экране «Расчёты»: подгружаем свежие и перерисовываем один раз.
+  if (!fresh && Date.now() - dealsLoadedAt > 3000) {
+    loadDeals().then(() => { if ($('dashTop')) renderDashboard(true); });
+  }
 }
 
 function renderTrips() {
@@ -723,7 +774,7 @@ $('loginForm').onsubmit = async (e) => {
   enterApp();
 };
 
-$('logoutBtn').onclick = async () => { await db.auth.signOut(); trips = []; clients = []; carriers = []; enterLogin(); };
+$('logoutBtn').onclick = async () => { await db.auth.signOut(); trips = []; clients = []; carriers = []; deals = []; enterLogin(); };
 window.addEventListener('hashchange', () => { if (!$('app').classList.contains('hidden') && trips.length + clients.length >= 0) route(); });
 
 (async () => {
