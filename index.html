@@ -113,6 +113,8 @@ table.orders tbody tr[data-href]:hover td{background:#F7F9FC}
 .k-deal{background:#E6EDF6;color:var(--navy);font-weight:500}
 .toggle{display:flex;align-items:center;gap:8px;padding:0 14px 12px;font-size:13px;cursor:pointer;width:max-content}
 .toggle input{width:auto}
+.linkbtn{background:none;border:0;padding:0;font:inherit;font-size:13px;color:var(--navy);text-decoration:underline;cursor:pointer}
+tr.total td{font-weight:600;border-top:2px solid var(--line)}
 .period{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--field);border-radius:8px;overflow:hidden;background:#fff}
 .seg button{padding:8px 12px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;border:0;border-left:1px solid var(--line);cursor:pointer}
@@ -336,6 +338,28 @@ function tripsTable(rows) {
 let dashPeriod = {mode: 'all', from: '', to: ''};
 const PERIODS = [['all', 'Всё время'], ['month', 'Этот месяц'], ['year', 'Этот год'], ['custom', 'Свои даты']];
 
+// «Прибыль по клиентам»: все клиенты из данных, по чистой прибыли; больше пяти — топ-5 и кнопка «Показать всех».
+// «Без клиента» отдельной строкой внизу, «Итого» по всем строкам совпадает с плитками.
+let dashAllClients = false;
+const CLIENTS_TOP = 5;
+function clientsBlock(tot) {
+  const list = tot.byClient.filter((g) => !g.noClient), none = tot.byClient.find((g) => g.noClient);
+  if (!list.length && !none) return '<div class="card"><h3>Прибыль по клиентам</h3><div class="pad muted">Данных пока нет</div></div>';
+  const shown = (dashAllClients || list.length <= CLIENTS_TOP) ? list : list.slice(0, CLIENTS_TOP);
+  const row = (name, g, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + name + '</td>' +
+    '<td class="r">' + eur(g.income) + '</td>' +
+    '<td class="r ' + (g.profit >= 0 ? 'pos' : 'neg') + '">' + eur(g.profit) + '</td>' +
+    '<td class="r">' + pct(g.margin) + '</td><td class="r">' + g.count + '</td></tr>';
+  return '<div class="card"><h3>Прибыль по клиентам <span class="muted" style="font-weight:400;font-size:13px">· клиентов: ' + list.length + '</span></h3>' +
+    '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Клиент</th><th class="r">Доход</th><th class="r">Чистая прибыль</th><th class="r">Маржа</th><th class="r">Заказов</th></tr></thead><tbody>' +
+    shown.map((g) => row(esc(g.name), g)).join('') +
+    (list.length > CLIENTS_TOP ? '<tr><td colspan="5"><button class="linkbtn" id="toggleClients" type="button">' +
+      (dashAllClients ? 'Свернуть до топ-' + CLIENTS_TOP : 'Показать всех (' + list.length + ')') + '</button></td></tr>' : '') +
+    (none ? row('<span class="muted">Без клиента</span>', none) : '') +
+    row('Итого', tot, 'total') +
+    '</tbody></table></div></div>';
+}
+
 function renderDashboard(fresh) {
   setNav('home');
   const range = periodRange(dashPeriod);
@@ -357,16 +381,11 @@ function renderDashboard(fresh) {
       '<div class="metric"><div class="l">Сделок</div><div class="v">' + tot.dealsCount + '</div></div>' +
     '</div>' +
     (tot.noClientCount ? '<div class="card"><div class="row"><div><strong>У ' + tot.noClientCount + ' заказов не указан клиент.</strong><div class="sub">Откройте заказ и назначьте клиента, тогда он появится в отчётах по клиентам.</div></div><button class="btn ghost small" id="showNoClient" type="button">Показать заказы</button></div></div>' : '') +
-    '<div class="card"><h3>Прибыль по клиентам</h3>' + (!tot.byClient.length ? '<div class="pad muted">Данных пока нет</div>' :
-      '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Клиент</th><th class="r">Доход</th><th class="r">Чистая прибыль</th><th class="r">Маржа</th></tr></thead><tbody>' +
-      tot.byClient.map((g) => '<tr><td>' + (g.noClient ? '<span class="muted">Без клиента</span>' : esc(g.name)) + '</td>' +
-        '<td class="r">' + eur(g.income) + '</td>' +
-        '<td class="r ' + (g.profit >= 0 ? 'pos' : 'neg') + '">' + eur(g.profit) + '</td>' +
-        '<td class="r">' + pct(g.margin) + '</td></tr>').join('') +
-      '</tbody></table></div>') + '</div>' +
+    clientsBlock(tot) +
     '<div class="card" id="recentCard"><h3>Последние заказы</h3>' + ordersTable(recent) + '</div>';
   bindPeriod(dashPeriod, 'p', () => renderDashboard(true));
   bindOrderRows($('recentCard'));
+  if ($('toggleClients')) $('toggleClients').onclick = () => { dashAllClients = !dashAllClients; renderDashboard(true); };
   if ($('showNoClient')) $('showNoClient').onclick = () => {
     Object.assign(ordersFilter, {mode: dashPeriod.mode, from: dashPeriod.from, to: dashPeriod.to, client: '__none', kind: '', status: ''});
     location.hash = '#/orders';
@@ -866,7 +885,7 @@ const numZ = (v) => { const x = Number(v); return (v == null || v === '' || !isF
 // Чистая функция итогов: только imported/active/done, по дате загрузки (start_date). Прибыль = сумма net_eur.
 function ordersTotals(rows, range, nameOf) {
   const list = (rows || []).filter((o) => ORDER_COUNTED.includes(o.status) && inRange(o.start_date, range));
-  const blank = () => ({income: 0, cost: 0, tax: 0, profit: 0});
+  const blank = () => ({income: 0, cost: 0, tax: 0, profit: 0, count: 0});
   const tot = blank(), groups = new Map();
   list.forEach((o) => {
     const v = {income: numZ(o.income_eur), cost: numZ(o.cost_eur), tax: numZ(o.tax_eur), profit: numZ(o.net_eur)};
@@ -874,10 +893,10 @@ function ordersTotals(rows, range, nameOf) {
     if (!groups.has(key)) groups.set(key, Object.assign(blank(), {name: key ? ((nameOf && nameOf(key)) || 'Без названия') : 'Без клиента', noClient: !key}));
     const g = groups.get(key);
     Object.keys(v).forEach((k) => { tot[k] += v[k]; g[k] += v[k]; });
+    g.count++; tot.count++;
   });
   const fin = (x) => Object.assign(x, {margin: x.income ? x.profit / x.income : null});
   return Object.assign(fin(tot), {
-    count: list.length,
     tripsCount: list.filter((o) => o.kind === 'trip').length,
     dealsCount: list.filter((o) => o.kind === 'deal').length,
     noClientCount: list.filter((o) => !o.client_id).length,
