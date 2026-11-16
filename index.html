@@ -88,7 +88,7 @@ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;bac
 .dealv{display:flex;flex-direction:column;gap:14px}
 .deal-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
 .deal-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.3px}
-.deal-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.deal-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
 .deal-left{display:flex;flex-direction:column;gap:14px;min-width:0}
 .deal-side{position:sticky;top:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .deal-side #dWarn:empty{display:none}
@@ -99,6 +99,7 @@ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;bac
 .dfields>.w{flex:2 1 120px}
 .dfields>.dt{flex:1 1 130px}
 .dfields>.w3{flex:3 1 200px}
+.dfields>.st{flex:1 1 112px}
 .dfields>.fx{flex:2 1 170px}
 .dfields .hint{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.3}
 .eq{display:block;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap}
@@ -118,6 +119,35 @@ table.orders tbody tr[data-href]:hover td{background:#F7F9FC}
 .stsel{display:inline-flex;align-items:center;gap:8px;font-size:13px}
 .stsel label{margin:0;font-weight:400;color:var(--muted)}
 .stsel select{width:auto;padding:7px 10px;font-size:13px}
+.cpay{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 14px 14px}
+.cpay label{font-size:11px;color:var(--muted);font-weight:500;margin-bottom:3px}
+.cpay input{padding:6px 8px;font-size:13px;border-radius:6px}
+.qpay-h{font-size:12px;font-weight:600;color:var(--muted);padding:0 14px 4px}
+.lines.qpay{min-width:0;margin-bottom:8px}
+.lines.qpay tr.payrow td{border-bottom:0;padding:4px 14px 6px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs a{padding:10px 14px;font-size:14px;color:var(--muted);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a.active{color:var(--navy);font-weight:600;border-bottom-color:var(--navy)}
+.fin-sum .v{font-size:24px}
+table.fin-t{table-layout:fixed;min-width:820px}
+table.fin-t th:nth-child(1){width:26%}table.fin-t th:nth-child(2){width:14%}table.fin-t th:nth-child(3){width:10%}table.fin-t th:nth-child(4){width:11%}
+table.fin-t th:nth-child(5),table.fin-t th:nth-child(6),table.fin-t th:nth-child(7){width:11%}table.fin-t th:nth-child(8){width:132px}
+table.fin-in th:nth-child(2){width:11%}table.fin-in th:nth-child(3){width:12%}table.fin-in th:nth-child(4),table.fin-in th:nth-child(5),table.fin-in th:nth-child(6){width:12%}table.fin-in th:nth-child(7){width:150px}
+.gsum{font-weight:400;font-size:13px;color:var(--muted);margin-left:6px}
+tr.overdue td{background:#FDF2F2}
+.k-out{background:#FDECEC;color:#9B1C1C}
+.k-in{background:var(--okbg);color:var(--ok)}
+.lines tr.payrow td{padding-top:0;padding-bottom:6px}
+.lines tr.has-pay td{border-bottom:0}
+.payf{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;color:var(--muted)}
+.payf select{width:200px}
+.payf input[data-f="invoice_no"]{width:120px}
+.payf .pl{display:inline-flex;align-items:center;gap:5px;margin:0;font-size:12px;font-weight:400;color:var(--muted)}
+.payf input[type=date]{width:auto}
+.payf input.num{width:84px}
+.nocar-hint{display:none;color:var(--warn);font-weight:500}
+.lines tr.nocar td{background:var(--warnbg)}
+.lines tr.nocar .nocar-hint{display:inline}
 .linkbtn{background:none;border:0;padding:0;font:inherit;font-size:13px;color:var(--navy);text-decoration:underline;cursor:pointer}
 tr.total td{font-weight:600;border-top:2px solid var(--line)}
 .period{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -143,8 +173,8 @@ tr.total td{font-weight:600;border-top:2px solid var(--line)}
 .lines select{width:158px}
 .lines input.num{width:64px;text-align:right}
 .lines input[type=checkbox]{width:16px;height:16px;margin:0;vertical-align:middle}
-.lines .x{border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}
-.lines .x:hover{background:var(--bg);color:#9B1C1C}
+.lines .x,.tbl-sm .x{border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}
+.lines .x:hover,.tbl-sm .x:hover{background:var(--bg);color:#9B1C1C}
 .addrow{display:flex;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line)}
 .addrow select{flex:1 1 auto;width:auto;min-width:0;padding:6px 8px;font-size:13px;border-radius:6px}
 /* панель «Итог» */
@@ -185,6 +215,8 @@ tr.total td{font-weight:600;border-top:2px solid var(--line)}
     <nav>
       <a href="#/" id="nav-home">Дашборд</a>
       <a href="#/orders" id="nav-orders">Заказы</a>
+      <a href="#/contractors" id="nav-carriers">Контрагенты</a>
+      <a href="#/finance" id="nav-finance">Финансы</a>
     </nav>
     <div class="spacer"></div>
     <button class="btn ghost small" id="logoutBtn" type="button">Выйти</button>
@@ -216,7 +248,7 @@ async function loadAll() {
   const [t, c, k] = await Promise.all([
     db.from('trips').select('*, clients(name), carriers(name)').order('loading_date', {ascending: false, nullsFirst: false}),
     db.from('clients').select('id, name').order('name'),
-    db.from('carriers').select('id, name').order('name')
+    db.from('carriers').select('*').order('name')
   ]);
   if (t.error) throw t.error;
   if (c.error) throw c.error;
@@ -327,6 +359,8 @@ function showError(msg) {
 function setNav(active) {
   $('nav-home').classList.toggle('active', active === 'home');
   $('nav-orders').classList.toggle('active', active === 'orders' || active === 'trips' || active === 'deals');
+  $('nav-carriers').classList.toggle('active', active === 'carriers');
+  $('nav-finance').classList.toggle('active', active === 'finance');
 }
 
 function tripStatus(t) {
@@ -714,13 +748,14 @@ async function renderDeal(id, okMsg) {
 
 function dealLineRow(l) {
   const rate = (f, label) => '<td><input class="num" data-f="' + f + '" inputmode="decimal" value="' + (l[f] == null ? '' : esc(l[f])) + '" placeholder="—" aria-label="' + label + '"></td>';
-  return '<tr data-key="' + esc(l.key) + '">' +
+  return '<tr class="has-pay" data-key="' + esc(l.key) + '">' +
     '<td><input data-f="name" value="' + esc(l.name) + '" placeholder="Название статьи" aria-label="Название статьи"></td>' +
     '<td><select data-f="basis" aria-label="Основа">' + Object.entries(BASIS).map(([k, v]) => '<option value="' + k + '"' + (l.basis === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></td>' +
     rate('cost_rate', 'Ставка себестоимости') + rate('sale_rate', 'Ставка продажи') +
     '<td class="r" data-c="cost"></td><td class="r" data-c="sale"></td><td class="r" data-c="diff"></td>' +
     '<td style="text-align:center"><input type="checkbox" data-f="unconfirmed"' + (l.unconfirmed ? ' checked' : '') + ' aria-label="Не подтверждено" title="Не подтверждено"></td>' +
-    '<td><button class="x" type="button" data-del aria-label="Удалить строку" title="Удалить строку">×</button></td></tr>';
+    '<td><button class="x" type="button" data-del aria-label="Удалить строку" title="Удалить строку">×</button></td></tr>' +
+    linePayRow(l);
 }
 
 function drawDeal(okMsg) {
@@ -741,7 +776,7 @@ function drawDeal(okMsg) {
     (okMsg ? '<div class="okbox">' + esc(okMsg) + '</div>' : '') +
     '<div class="deal-grid"><div class="deal-left">' +
       '<section class="card" aria-label="Объём и условия"><div class="dfields">' +
-        '<div><label for="dStatus">Статус</label><select id="dStatus">' + Object.entries(DEAL_STATUS).map(([k, v]) => '<option value="' + k + '"' + (normStatus(d.status) === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></div>' +
+        '<div class="st"><label for="dStatus">Статус</label><select id="dStatus">' + Object.entries(DEAL_STATUS).map(([k, v]) => '<option value="' + k + '"' + (normStatus(d.status) === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></div>' +
         '<div class="w"><label for="dTitle">Название</label><input id="dTitle" value="' + val(d.title) + '"></div>' +
         '<div class="w"><label for="dClient">Клиент</label><input id="dClient" list="dClientList" value="' + val(d.client_name) + '" placeholder="Название клиента"><datalist id="dClientList">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
         '<div><label for="dMarks" title="Бутылок под акцизные марки">Бут. под марки</label><input id="dMarks" inputmode="numeric" value="' + val(d.qty_marks) + '"></div>' +
@@ -749,7 +784,7 @@ function drawDeal(okMsg) {
         '<div><label for="dPallets">Палет</label><input id="dPallets" inputmode="numeric" value="' + val(d.pallets) + '"></div>' +
         '<div><label for="dTax">Налог</label><select id="dTax">' + taxOpts.map((t) => '<option value="' + t + '"' + (Number(d.tax_rate) === t ? ' selected' : '') + '>' + pct(t) + '</option>').join('') + '</select></div>' +
         '<div><label for="dFinal" title="Итоговая цена клиенту. Если пусто, берётся цена по расчёту">Выставлено, ' + sign + '</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
-        '<div><label for="dCur">Валюта</label><select id="dCur">' + curOpts.map((c) => curOption(c, c === cur)).join('') + '</select></div>' +
+        '<div class="st"><label for="dCur">Валюта</label><select id="dCur">' + curOpts.map((c) => curOption(c, c === cur)).join('') + '</select></div>' +
         fxFieldHtml('dFx', cur, d.fx_to_eur) +
         '<div class="dt"><label for="dStart">Загрузка</label><input id="dStart" type="date" value="' + val(d.start_date) + '"></div>' +
         '<div class="dt"><label for="dEnd" title="Выгрузка на складе">Выгрузка на складе</label><input id="dEnd" type="date" value="' + val(d.end_date) + '"></div>' +
@@ -765,6 +800,9 @@ function drawDeal(okMsg) {
       '</section>' +
     '</div><aside class="deal-side">' +
       '<div class="card"><h3 class="sm">Итог</h3><div class="scroll"><table class="tot"><thead><tr><th></th><th class="r">По расчёту</th><th class="r">Выставлено</th></tr></thead><tbody id="dTot"></tbody></table></div></div>' +
+      '<div class="card"><h3 class="sm">Оплата клиента</h3><div class="cpay">' +
+        '<div><label for="dInv" title="Если пусто — равно итоговой цене">Выставлено клиенту, ' + sign + '</label><input id="dInv" inputmode="decimal" value="' + val(d.client_invoice_amount) + '"></div>' +
+        '<div><label for="dDue">Срок оплаты</label><input id="dDue" type="date" value="' + val(d.client_due_date) + '"></div></div></div>' +
       '<div id="dWarn"></div>' +
       '<div class="side-acts"><button class="btn" id="dSave" type="button">Сохранить</button>' +
 '</div>' +
@@ -780,18 +818,10 @@ function drawDeal(okMsg) {
   $('dCompany').onchange = (e) => { d.company = e.target.value || null; };
   $('dCur').onchange = (e) => { d.currency = e.target.value; drawDeal(); };
   if ($('dFx')) bindNum('dFx', 'fx_to_eur');
+  bindNum('dInv', 'client_invoice_amount');
+  $('dDue').onchange = (e) => { d.client_due_date = e.target.value || null; };
 
-  const onLine = (e) => {
-    const tr = e.target.closest('tr[data-key]'); const f = e.target.getAttribute('data-f');
-    if (!tr || !f) return;
-    const l = s.lines.find((x) => x.key === tr.getAttribute('data-key'));
-    if (!l) return;
-    if (f === 'unconfirmed') l.unconfirmed = e.target.checked;
-    else if (f === 'cost_rate' || f === 'sale_rate') l[f] = numOrNull(e.target.value);
-    else l[f] = e.target.value;
-    l.dirty = true;
-    updateDealCalc();
-  };
+  const onLine = (e) => { if (lineInput(e, s.lines, () => drawDeal())) updateDealCalc(); };
   $('dLines').addEventListener('input', onLine);
   $('dLines').addEventListener('change', onLine);
   $('dLines').addEventListener('click', (e) => {
@@ -800,7 +830,7 @@ function drawDeal(okMsg) {
     const i = s.lines.findIndex((x) => x.key === tr.getAttribute('data-key'));
     if (i < 0) return;
     if (s.lines[i].id) s.removed.push(s.lines[i].id);
-    s.lines.splice(i, 1); tr.remove(); updateDealCalc();
+    s.lines.splice(i, 1); removeLineRows($('dLines'), tr.getAttribute('data-key')); updateDealCalc();
   });
   $('addLineBtn').onclick = () => {
     const c = s.catalog.find((x) => x.id === $('addLine').value);
@@ -810,7 +840,7 @@ function drawDeal(okMsg) {
     s.lines.push(l);
     $('dLines').insertAdjacentHTML('beforeend', dealLineRow(l));
     updateDealCalc();
-    if (!c) $('dLines').lastElementChild.querySelector('[data-f="name"]').focus();
+    if (!c) $('dLines').querySelector('tr[data-key="' + l.key + '"] [data-f="name"]').focus();
   };
   $('dSave').onclick = () => saveDeal(false);
   $('dStatus').onchange = (e) => { d.status = e.target.value; };
@@ -842,6 +872,8 @@ function updateDealCalc() {
   $('dWarn').innerHTML = (res.unconfirmed ? '<div class="warnbox">Есть строки «не подтверждено»: итог может быть неполным.</div>' : '') +
     (cur !== 'EUR' && fxNum === 1 ? '<div class="warnbox">Курс к евро равен 1. Проверьте, что он указан верно.</div>' : '');
   $('dFinal').placeholder = m(a.price);
+  $('dInv').placeholder = String(Math.round(b.price * 100) / 100).replace('.', ',');
+  paintLinePay('dLines', s.lines, res.rows);
 }
 
 async function saveDeal(activate) {
@@ -856,9 +888,10 @@ async function saveDeal(activate) {
   if (d.final_price != null && Number.isNaN(d.final_price)) return fail('Проверьте поле «Выставлено клиенту»: только цифры.');
   if (dealCur(d) !== 'EUR' && !(d.fx_to_eur != null && d.fx_to_eur !== '' && isFinite(Number(d.fx_to_eur)) && Number(d.fx_to_eur) > 0)) return fail('Укажите курс к евро: число больше нуля, например 0,92.');
   if (d.start_date && d.end_date && d.end_date < d.start_date) return fail('Дата выгрузки на складе раньше даты загрузки. Проверьте даты.');
+  if (d.client_invoice_amount != null && Number.isNaN(d.client_invoice_amount)) return fail('Проверьте поле «Выставлено клиенту»: только цифры.');
   for (const l of s.lines) {
     if (!String(l.name || '').trim()) return fail('У каждой строки должно быть название.');
-    if ([l.cost_rate, l.sale_rate].some((x) => x != null && Number.isNaN(x))) return fail('Проверьте ставки в строке «' + l.name + '»: только цифры.');
+    if (lineBad(l)) return fail('Проверьте суммы в строке «' + l.name + '»: только цифры.');
   }
   const btns = [$('dSave'), $('dActivate')].filter(Boolean);
   btns.forEach((b) => { b.disabled = true; });
@@ -869,7 +902,8 @@ async function saveDeal(activate) {
       qty_stickers: d.qty_stickers == null ? 0 : d.qty_stickers, pallets: d.pallets,
       tax_rate: Number(d.tax_rate) || 0, final_price: d.final_price,
       start_date: d.start_date || null, end_date: d.end_date || null, company: d.company || null,
-      currency: dealCur(d), fx_to_eur: dealCur(d) === 'EUR' ? 1 : Number(d.fx_to_eur)};
+      currency: dealCur(d), fx_to_eur: dealCur(d) === 'EUR' ? 1 : Number(d.fx_to_eur),
+      client_invoice_amount: d.client_invoice_amount == null ? null : d.client_invoice_amount, client_due_date: d.client_due_date || null};
     row.status = activate ? 'active' : normStatus(d.status);
     let r = await db.from('deals').update(row).eq('id', s.id);
     if (r.error) throw r.error;
@@ -879,7 +913,9 @@ async function saveDeal(activate) {
       s.removed = [];
     }
     const toDb = (l, i) => ({deal_id: s.id, name: String(l.name).trim(), basis: l.basis, cost_rate: l.cost_rate,
-      sale_rate: l.sale_rate, unconfirmed: !!l.unconfirmed, sort: i});
+      sale_rate: l.sale_rate, unconfirmed: !!l.unconfirmed, sort: i,
+      carrier_id: l.carrier_id || null, invoice_no: String(l.invoice_no || '').trim() || null, due_date: l.due_date || null,
+      payable_amount: l.payable_amount == null ? null : l.payable_amount});
     const upd = [], ins = [];
     s.lines.forEach((l, i) => {
       if (!l.id) ins.push(toDb(l, i));
@@ -1045,6 +1081,8 @@ async function renderNewOrder() {
   const cat = await db.from('service_catalog').select('*').order('sort').order('name');
   if (location.hash !== '#/orders/new') return;
   newOrder = {client_name: '', title: '', start_date: null, end_date: null, currency: 'EUR', fx_to_eur: null,
+    quick: {key: 'q', carrier_id: null, invoice_no: '', due_date: null, payable_amount: null},
+    client_invoice_amount: null, client_due_date: null,
     income: null, cost: null, services: false, qty_marks: null, qty_stickers: null, lines: [],
     catalog: cat.error ? [] : cat.data, catErr: cat.error ? cat.error.message : ''};
   drawNewOrder();
@@ -1054,7 +1092,9 @@ async function renderNewOrder() {
 function newOrderDeal(s) {
   const deal = {qty_marks: s.services ? s.qty_marks : 0, qty_stickers: s.services ? s.qty_stickers : 0, tax_rate: NEW_ORDER_TAX,
     final_price: s.services ? null : s.income, currency: s.currency, fx_to_eur: s.fx_to_eur};
-  const lines = s.services ? s.lines : [{name: 'Перевозка', basis: 'fixed', cost_rate: s.cost, sale_rate: s.income, unconfirmed: false}];
+  const q = s.quick || {};
+  const lines = s.services ? s.lines : [{name: 'Перевозка', basis: 'fixed', cost_rate: s.cost, sale_rate: s.income, unconfirmed: false,
+    carrier_id: q.carrier_id || null, invoice_no: q.invoice_no || null, due_date: q.due_date || null, payable_amount: q.payable_amount == null ? null : q.payable_amount}];
   return {deal: deal, lines: lines};
 }
 
@@ -1071,11 +1111,12 @@ function drawNewOrder() {
         '<div class="w3"><label for="noTitle">Название / маршрут</label><input id="noTitle" value="' + val(s.title) + '" placeholder="Напр. Город А — Город Б"></div>' +
         '<div class="dt"><label for="noStart">Загрузка</label><input id="noStart" type="date" value="' + val(s.start_date) + '"></div>' +
         '<div class="dt"><label for="noEnd">Выгрузка</label><input id="noEnd" type="date" value="' + val(s.end_date) + '"></div>' +
-        '<div><label for="noCur">Валюта</label><select id="noCur">' + Object.keys(CUR_SIGN).map((c) => curOption(c, c === cur)).join('') + '</select></div>' +
+        '<div class="st"><label for="noCur">Валюта</label><select id="noCur">' + Object.keys(CUR_SIGN).map((c) => curOption(c, c === cur)).join('') + '</select></div>' +
         fxFieldHtml('noFx', cur, s.fx_to_eur) +
         '<div><label for="noIncome">Доход, ' + sign + '</label><input id="noIncome" inputmode="decimal" value="' + val(s.income) + '"' + (s.services ? ' readonly title="Считается из расчёта по услугам"' : '') + '></div>' +
         '<div><label for="noCost">Затраты, ' + sign + '</label><input id="noCost" inputmode="decimal" value="' + val(s.cost) + '"' + (s.services ? ' readonly title="Считается из расчёта по услугам"' : '') + '></div>' +
       '</div>' +
+      (s.services ? '' : '<div class="qpay-h">Оплата исполнителю</div><table class="lines qpay"><tbody id="noQuick">' + linePayRow(s.quick) + '</tbody></table>') +
       '<label class="toggle"><input type="checkbox" id="noSvc"' + (s.services ? ' checked' : '') + '> Добавить расчёт по услугам</label>' +
       '</section>' +
       (!s.services ? '' :
@@ -1094,6 +1135,9 @@ function drawNewOrder() {
       '</section>') +
     '</div><aside class="deal-side">' +
       '<div class="card"><h3 class="sm">Итог (налог ' + pct(NEW_ORDER_TAX) + ')</h3><div class="scroll"><table class="tot"><tbody id="noTot"></tbody></table></div></div>' +
+      '<div class="card"><h3 class="sm">Оплата клиента</h3><div class="cpay">' +
+        '<div><label for="noInv" title="Если пусто — равно доходу">Выставлено клиенту, ' + sign + '</label><input id="noInv" inputmode="decimal" value="' + val(s.client_invoice_amount) + '"></div>' +
+        '<div><label for="noDue">Срок оплаты</label><input id="noDue" type="date" value="' + val(s.client_due_date) + '"></div></div></div>' +
       '<div id="noWarn"></div>' +
       '<div class="side-acts"><button class="btn" id="noSave" type="button">Сохранить заказ</button><a class="btn ghost" href="#/orders" style="text-decoration:none;text-align:center">Отмена</a></div>' +
     '</aside></div></div>';
@@ -1105,11 +1149,18 @@ function drawNewOrder() {
   $('noEnd').onchange = (e) => { s.end_date = e.target.value || null; };
   $('noCur').onchange = (e) => { s.currency = e.target.value; drawNewOrder(); };
   num('noFx', 'fx_to_eur');
-  if (!s.services) { num('noIncome', 'income'); num('noCost', 'cost'); }
+  if (!s.services) {
+    num('noIncome', 'income'); num('noCost', 'cost');
+    const onQuick = (e) => { if (lineInput(e, [s.quick], () => drawNewOrder())) updateNewOrderCalc(); };
+    $('noQuick').addEventListener('input', onQuick);
+    $('noQuick').addEventListener('change', onQuick);
+  }
+  num('noInv', 'client_invoice_amount');
+  $('noDue').onchange = (e) => { s.client_due_date = e.target.value || null; };
   $('noSvc').onchange = (e) => {
     if (e.target.checked) {
       // Первая строка расчёта — то, что уже вписано в доход и затраты.
-      if (!s.lines.length) s.lines.push({name: 'Перевозка', basis: 'fixed', cost_rate: s.cost, sale_rate: s.income, unconfirmed: false, key: 'k' + (++lineSeq)});
+      if (!s.lines.length) s.lines.push(Object.assign({}, newOrderDeal(s).lines[0], {key: 'k' + (++lineSeq)}));
       s.services = true;
     } else {
       const b = calcDeal(newOrderDeal(s).deal, s.lines).billed;
@@ -1119,16 +1170,7 @@ function drawNewOrder() {
   };
   if (s.services) {
     num('noMarks', 'qty_marks'); num('noStickers', 'qty_stickers');
-    const onLine = (e) => {
-      const tr = e.target.closest('tr[data-key]'); const f = e.target.getAttribute('data-f');
-      if (!tr || !f) return;
-      const l = s.lines.find((x) => x.key === tr.getAttribute('data-key'));
-      if (!l) return;
-      if (f === 'unconfirmed') l.unconfirmed = e.target.checked;
-      else if (f === 'cost_rate' || f === 'sale_rate') l[f] = numOrNull(e.target.value);
-      else l[f] = e.target.value;
-      updateNewOrderCalc();
-    };
+    const onLine = (e) => { if (lineInput(e, s.lines, () => drawNewOrder())) updateNewOrderCalc(); };
     $('noLines').addEventListener('input', onLine);
     $('noLines').addEventListener('change', onLine);
     $('noLines').addEventListener('click', (e) => {
@@ -1136,7 +1178,7 @@ function drawNewOrder() {
       const tr = b.closest('tr[data-key]');
       const i = s.lines.findIndex((x) => x.key === tr.getAttribute('data-key'));
       if (i < 0) return;
-      s.lines.splice(i, 1); tr.remove(); updateNewOrderCalc();
+      s.lines.splice(i, 1); removeLineRows($('noLines'), tr.getAttribute('data-key')); updateNewOrderCalc();
     });
     $('noAddBtn').onclick = () => {
       const c = s.catalog.find((x) => x.id === $('noAdd').value);
@@ -1146,7 +1188,7 @@ function drawNewOrder() {
       s.lines.push(l);
       $('noLines').insertAdjacentHTML('beforeend', dealLineRow(l));
       updateNewOrderCalc();
-      if (!c) $('noLines').lastElementChild.querySelector('[data-f="name"]').focus();
+      if (!c) $('noLines').querySelector('tr[data-key="' + l.key + '"] [data-f="name"]').focus();
     };
   }
   $('noSave').onclick = saveNewOrder;
@@ -1169,7 +1211,9 @@ function updateNewOrderCalc() {
     });
     $('noIncome').value = Math.round(b.price * 100) / 100;
     $('noCost').value = Math.round(b.cost * 100) / 100;
-  }
+    paintLinePay('noLines', s.lines, res.rows);
+  } else paintLinePay('noQuick', [s.quick], res.rows);
+  $('noInv').placeholder = String(Math.round(b.price * 100) / 100).replace('.', ',');
   const row = (label, n, bold) => '<tr><td' + (bold ? ' style="font-weight:600"' : '') + '>' + label + '</td><td class="r' + (bold ? ' ' + (n >= 0 ? 'pos' : 'neg') : '') + '">' + mEq(n) + '</td></tr>';
   $('noTot').innerHTML = row('Доход', b.price) + row('Затраты', b.cost) + row('Разница', b.diff) +
     row('Налог (' + pct(NEW_ORDER_TAX) + ' с разницы)', b.tax) + row('Чистая прибыль', b.profit, true) +
@@ -1197,9 +1241,11 @@ async function saveNewOrder() {
     }
     for (const l of s.lines) {
       if (!String(l.name || '').trim()) return fail('У каждой строки должно быть название.');
-      if (bad(l.cost_rate) || bad(l.sale_rate)) return fail('Проверьте ставки в строке «' + l.name + '»: только цифры.');
+      if (lineBad(l)) return fail('Проверьте суммы в строке «' + l.name + '»: только цифры.');
     }
   }
+  if (!s.services && bad(s.quick.payable_amount)) return fail('Проверьте поле «К оплате»: только цифры.');
+  if (bad(s.client_invoice_amount)) return fail('Проверьте поле «Выставлено клиенту»: только цифры.');
   const btn = $('noSave'); btn.disabled = true; btn.textContent = 'Сохраняю...';
   let newId = null;
   try {
@@ -1209,12 +1255,15 @@ async function saveNewOrder() {
       title: title, client_id: cid, status: 'active', tax_rate: NEW_ORDER_TAX, company: NEW_ORDER_COMPANY,
       start_date: s.start_date || null, end_date: s.end_date || null,
       currency: s.currency, fx_to_eur: s.currency === 'EUR' ? 1 : s.fx_to_eur,
-      final_price: x.deal.final_price, qty_marks: x.deal.qty_marks || 0, qty_stickers: x.deal.qty_stickers || 0
+      final_price: x.deal.final_price, qty_marks: x.deal.qty_marks || 0, qty_stickers: x.deal.qty_stickers || 0,
+      client_invoice_amount: s.client_invoice_amount == null ? null : s.client_invoice_amount, client_due_date: s.client_due_date || null
     }).select('id').single();
     if (d.error) throw d.error;
     newId = d.data.id;
     const ins = await db.from('deal_lines').insert(x.lines.map((l, i) => ({deal_id: newId, name: String(l.name).trim(), basis: l.basis,
-      cost_rate: l.cost_rate, sale_rate: l.sale_rate, unconfirmed: !!l.unconfirmed, sort: i})));
+      cost_rate: l.cost_rate, sale_rate: l.sale_rate, unconfirmed: !!l.unconfirmed, sort: i,
+      carrier_id: l.carrier_id || null, invoice_no: String(l.invoice_no || '').trim() || null, due_date: l.due_date || null,
+      payable_amount: l.payable_amount == null ? null : l.payable_amount})));
     if (ins.error) {
       // Строки не сохранились: убираем только что созданную пустую сделку, чтобы не осталось заказа без расчёта.
       await db.from('deals').delete().eq('id', newId);
@@ -1232,6 +1281,334 @@ async function saveNewOrder() {
   }
 }
 
+/* ===== Контрагенты и финансы ===== */
+const CARRIER_TYPES = {carrier: 'Перевозчик', warehouse: 'Склад', insurer: 'Страховая', broker: 'Брокер', other: 'Другое'};
+const FIN_STATUSES = ['active', 'done'];   // долги считаем только по активным и завершённым заказам
+const todayIso = () => iso(new Date());
+const carrierName = (id) => { const c = carriers.find((x) => x.id === id); return c ? c.name : ''; };
+const numOr = (v, dflt) => (v == null || v === '' || !isFinite(Number(v))) ? dflt : Number(v);
+
+// Чистая функция долгов.
+// Мы должны: строка заказа с контрагентом; к оплате = payable_amount, а если пусто — расход строки по расчёту;
+//   осталось = к оплате − платежи direction='out' по этой строке.
+// Нам должны: заказ; выставлено = client_invoice_amount, а если пусто — итоговая цена заказа;
+//   осталось = выставлено − платежи direction='in' по этому заказу.
+// Суммы строк — в валюте заказа, итоги — в евро по курсу заказа. Просрочка: срок раньше сегодняшнего дня.
+function financeDebts(dealRows, lineRows, payRows, today, nameOfCarrier, nameOfClient) {
+  const paidLine = new Map(), paidDeal = new Map();
+  (payRows || []).forEach((p) => {
+    const a = numOr(p.amount, 0);
+    if (p.direction === 'out' && p.deal_line_id) paidLine.set(p.deal_line_id, (paidLine.get(p.deal_line_id) || 0) + a);
+    if (p.direction === 'in' && p.deal_id) paidDeal.set(p.deal_id, (paidDeal.get(p.deal_id) || 0) + a);
+  });
+  const linesBy = new Map();
+  (lineRows || []).forEach((l) => { if (!linesBy.has(l.deal_id)) linesBy.set(l.deal_id, []); linesBy.get(l.deal_id).push(l); });
+  const out = new Map(), inn = new Map();
+  let unassigned = 0;
+  const group = (map, key, name) => {
+    if (!map.has(key)) map.set(key, {id: key, name: name, items: [], totalEur: 0, overdueEur: 0, byCur: {}});
+    return map.get(key);
+  };
+  const push = (g, item) => {
+    g.items.push(item); g.totalEur += item.leftEur;
+    if (item.overdue) g.overdueEur += item.leftEur;
+    g.byCur[item.cur] = (g.byCur[item.cur] || 0) + item.left;
+  };
+  (dealRows || []).filter((d) => FIN_STATUSES.includes(normStatus(d.status))).forEach((d) => {
+    const ls = (linesBy.get(d.id) || []).slice().sort((a, b) => (a.sort || 0) - (b.sort || 0));
+    const res = calcDeal(d, ls), cur = dealCur(d), fx = dealFx(d);
+    ls.forEach((l, i) => {
+      const payable = numOr(l.payable_amount, res.rows[i].cost);
+      if (!l.carrier_id) { if (payable > 0.005) unassigned++; return; }
+      const paid = paidLine.get(l.id) || 0, left = payable - paid;
+      if (left <= 0.005) return;
+      push(group(out, l.carrier_id, (nameOfCarrier && nameOfCarrier(l.carrier_id)) || 'Без названия'),
+        {deal: d, line: l, payable: payable, paid: paid, left: left, leftEur: left * fx, cur: cur, fx: fx,
+         due: l.due_date || null, overdue: !!(l.due_date && String(l.due_date).slice(0, 10) < today)});
+    });
+    const invoiced = numOr(d.client_invoice_amount, res.billed.price), paidIn = paidDeal.get(d.id) || 0, leftIn = invoiced - paidIn;
+    if (leftIn > 0.005) {
+      const key = d.client_id || '';
+      push(group(inn, key, key ? ((nameOfClient && nameOfClient(key)) || 'Без названия') : 'Без клиента'),
+        {deal: d, invoiced: invoiced, paid: paidIn, left: leftIn, leftEur: leftIn * fx, cur: cur, fx: fx,
+         due: d.client_due_date || null, overdue: !!(d.client_due_date && String(d.client_due_date).slice(0, 10) < today)});
+    }
+  });
+  const byDue = (a, b) => { const x = a.due ? String(a.due) : '9999', y = b.due ? String(b.due) : '9999'; return x < y ? -1 : x > y ? 1 : 0; };
+  const finish = (map) => {
+    const groups = Array.from(map.values());
+    groups.forEach((g) => g.items.sort(byDue));
+    groups.sort((a, b) => b.overdueEur - a.overdueEur || b.totalEur - a.totalEur);
+    return {groups: groups, totalEur: groups.reduce((s, g) => s + g.totalEur, 0), overdueEur: groups.reduce((s, g) => s + g.overdueEur, 0)};
+  };
+  return {weOwe: Object.assign(finish(out), {unassigned: unassigned}), owedToUs: finish(inn)};
+}
+
+let fin = {deals: [], lines: [], pays: [], err: null};
+async function loadFinance() {
+  const [d, l, p, k] = await Promise.all([
+    db.from('deals').select('*'),
+    db.from('deal_lines').select('*'),
+    db.from('payments').select('*').order('paid_at', {ascending: false}),
+    db.from('carriers').select('*').order('name')
+  ]);
+  const e = d.error || l.error || p.error || k.error;
+  fin = {deals: d.data || [], lines: l.data || [], pays: p.data || [], err: e ? e.message : null};
+  if (!k.error) carriers = k.data;
+}
+const curSums = (byCur) => Object.entries(byCur).map(([c, v]) => money(v, c)).join(' + ');
+
+/* ----- Контрагенты ----- */
+async function renderCarriers() {
+  setNav('carriers');
+  $('view').innerHTML = '<div class="muted">Загружаю контрагентов...</div>';
+  await loadFinance();
+  if (location.hash !== '#/contractors') return;
+  const debts = financeDebts(fin.deals, fin.lines, fin.pays, todayIso(), carrierName, clientName).weOwe;
+  const debtOf = new Map(debts.groups.map((g) => [g.id, g]));
+  $('view').innerHTML =
+    '<div class="top"><div><h1>Контрагенты</h1><div class="sub">Перевозчики, склады, страховые, брокеры и другие, кому мы платим</div></div>' +
+    '<button class="btn" id="newCarrierBtn" type="button">+ Новый контрагент</button></div>' +
+    (fin.err ? '<div class="err">Данные загрузились не полностью: ' + esc(fin.err) + '</div>' : '') +
+    '<div class="card">' + (!carriers.length ? '<div class="pad muted">Контрагентов пока нет</div>' :
+      '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Название</th><th>Тип</th><th>Валюта</th><th>ЕДРПОУ</th><th>Контакт</th><th class="r">Мы должны</th><th></th></tr></thead><tbody>' +
+      carriers.map((c) => {
+        const g = debtOf.get(c.id);
+        return '<tr><td style="font-weight:500">' + esc(c.name) + (c.notes ? '<div class="sub">' + esc(c.notes) + '</div>' : '') + '</td>' +
+          '<td><span class="kind k-trip">' + esc(CARRIER_TYPES[c.type] || c.type || '—') + '</span></td>' +
+          '<td>' + esc(c.currency || '—') + '</td><td>' + esc(c.edrpou || '—') + '</td><td>' + esc(c.contact || '—') + '</td>' +
+          '<td class="r">' + (g ? '<span class="' + (g.overdueEur > 0.005 ? 'neg' : '') + '">' + curSums(g.byCur) + '</span>' + (Object.keys(g.byCur).some((x) => x !== 'EUR') ? '<span class="eq">≈ ' + eur(g.totalEur) + '</span>' : '') : '<span class="muted">—</span>') + '</td>' +
+          '<td class="r"><button class="btn ghost small" type="button" data-edit="' + esc(c.id) + '">Изменить</button></td></tr>';
+      }).join('') + '</tbody></table></div>') + '</div>';
+  $('newCarrierBtn').onclick = () => openCarrierForm(null, () => renderCarriers());
+  document.querySelectorAll('[data-edit]').forEach((b) => {
+    b.onclick = () => openCarrierForm(carriers.find((c) => c.id === b.getAttribute('data-edit')), () => renderCarriers());
+  });
+}
+
+function openCarrierForm(c, onSaved, onCancel) {
+  const edit = !!c, g = (k) => (edit && c[k] != null) ? esc(c[k]) : '';
+  const opt = (obj, cur) => Object.entries(obj).map(([k, v]) => '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + esc(v) + '</option>').join('');
+  $('modalRoot').innerHTML =
+    '<div class="overlay"><form class="modal" id="carForm" role="dialog" aria-label="' + (edit ? 'Контрагент' : 'Новый контрагент') + '"><h2>' + (edit ? 'Контрагент' : 'Новый контрагент') + '</h2><div id="carErr" class="err hidden"></div>' +
+    '<div><label for="cName">Название</label><input id="cName" value="' + g('name') + '" required></div>' +
+    '<div class="f2"><div><label for="cType">Тип</label><select id="cType">' + opt(CARRIER_TYPES, edit ? c.type || 'carrier' : 'carrier') + '</select></div>' +
+    '<div><label for="cCur">Валюта расчётов</label><select id="cCur">' + Object.keys(CUR_SIGN).map((k) => curOption(k, k === (edit ? c.currency || 'EUR' : 'EUR'))).join('') + '</select></div></div>' +
+    '<div class="f2"><div><label for="cCode">ЕДРПОУ</label><input id="cCode" value="' + g('edrpou') + '" inputmode="numeric"></div>' +
+    '<div><label for="cContact">Контакт</label><input id="cContact" value="' + g('contact') + '"></div></div>' +
+    '<div><label for="cNotes">Заметки</label><textarea id="cNotes" rows="3">' + g('notes') + '</textarea></div>' +
+    '<div class="acts"><button class="btn ghost" type="button" id="carCancel">Отмена</button><button class="btn" type="submit" id="carSave">Сохранить</button></div></form></div>';
+  $('cName').focus();
+  $('carCancel').onclick = () => { $('modalRoot').innerHTML = ''; if (onCancel) onCancel(); };
+  $('carForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const box = $('carErr'); box.classList.add('hidden');
+    const row = {name: $('cName').value.trim(), type: $('cType').value, currency: $('cCur').value,
+      edrpou: $('cCode').value.trim() || null, contact: $('cContact').value.trim() || null, notes: $('cNotes').value.trim() || null};
+    if (!row.name) { box.textContent = 'Укажите название.'; box.classList.remove('hidden'); return; }
+    const btn = $('carSave'); btn.disabled = true; btn.textContent = 'Сохраняю...';
+    const r = edit ? await db.from('carriers').update(row).eq('id', c.id).select('*').single()
+                   : await db.from('carriers').insert(row).select('*').single();
+    if (r.error) { box.textContent = 'Не удалось сохранить: ' + r.error.message; box.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Сохранить'; return; }
+    const k = await db.from('carriers').select('*').order('name');
+    if (!k.error) carriers = k.data;
+    $('modalRoot').innerHTML = '';
+    if (onSaved) onSaved(r.data);
+  };
+}
+
+/* ----- Поля оплаты в строках заказа (общие для карточки сделки и формы нового заказа) ----- */
+function carrierOptions(selected) {
+  return '<option value="">— контрагент —</option>' +
+    carriers.map((c) => '<option value="' + esc(c.id) + '"' + (c.id === selected ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') +
+    (selected && !carriers.some((c) => c.id === selected) ? '<option value="' + esc(selected) + '" selected>(контрагент не найден)</option>' : '') +
+    '<option value="__new">+ новый контрагент</option>';
+}
+function linePayRow(l) {
+  const v = (f) => l[f] == null ? '' : esc(l[f]);
+  return '<tr class="payrow" data-key="' + esc(l.key) + '"><td colspan="9"><div class="payf">' +
+    '<select data-f="carrier_id" aria-label="Контрагент">' + carrierOptions(l.carrier_id) + '</select>' +
+    '<input data-f="invoice_no" value="' + v('invoice_no') + '" placeholder="№ счёта" aria-label="Номер счёта">' +
+    '<label class="pl">Срок оплаты <input type="date" data-f="due_date" value="' + v('due_date') + '" aria-label="Срок оплаты"></label>' +
+    '<label class="pl">К оплате <input class="num" data-f="payable_amount" inputmode="decimal" value="' + v('payable_amount') + '" aria-label="К оплате" title="По умолчанию — расход строки. Можно изменить, например на сумму с НДС"></label>' +
+    '<span class="nocar-hint">не попадёт в долги</span></div></td></tr>';
+}
+// Общая обработка ввода в строках. Возвращает строку, если она изменилась.
+function lineInput(e, lines, redraw) {
+  const tr = e.target.closest('tr[data-key]'), f = e.target.getAttribute('data-f');
+  if (!tr || !f) return null;
+  const l = lines.find((x) => x.key === tr.getAttribute('data-key'));
+  if (!l) return null;
+  if (f === 'carrier_id') {
+    if (e.type !== 'change') return null;
+    if (e.target.value === '__new') {
+      e.target.value = l.carrier_id || '';
+      openCarrierForm(null, (c) => { l.carrier_id = c.id; l.dirty = true; redraw(); });
+      return null;
+    }
+    l.carrier_id = e.target.value || null;
+  } else if (f === 'unconfirmed') l.unconfirmed = e.target.checked;
+  else if (f === 'cost_rate' || f === 'sale_rate' || f === 'payable_amount') l[f] = numOrNull(e.target.value);
+  else if (f === 'due_date') l[f] = e.target.value || null;
+  else l[f] = e.target.value;
+  l.dirty = true;
+  return l;
+}
+function removeLineRows(tbody, key) { tbody.querySelectorAll('tr[data-key="' + key + '"]').forEach((r) => r.remove()); }
+// Подсветка строк расхода без контрагента и подсказка «К оплате» = расход строки.
+function paintLinePay(tbodyId, lines, rows) {
+  lines.forEach((l, i) => {
+    const trs = document.querySelectorAll('#' + tbodyId + ' tr[data-key="' + l.key + '"]');
+    const r = rows[i] || {cost: 0};
+    const expense = r.cost > 0.005 || (l.payable_amount != null && l.payable_amount > 0);
+    trs.forEach((tr) => tr.classList.toggle('nocar', expense && !l.carrier_id));
+    const p = document.querySelector('#' + tbodyId + ' tr.payrow[data-key="' + l.key + '"] [data-f="payable_amount"]');
+    if (p) p.placeholder = String(Math.round(r.cost * 100) / 100).replace('.', ',');
+  });
+}
+const lineBad = (l) => [l.cost_rate, l.sale_rate, l.payable_amount].some((x) => x != null && Number.isNaN(x));
+
+/* ----- Финансы ----- */
+let paysFilter = {mode: 'all', from: '', to: '', dir: ''};
+const FIN_TABS = [['#/finance', 'Мы должны'], ['#/finance/in', 'Нам должны'], ['#/finance/payments', 'Платежи']];
+
+async function renderFinance(tab) {
+  setNav('finance');
+  const hash = location.hash;
+  $('view').innerHTML = '<div class="muted">Загружаю финансы...</div>';
+  await loadFinance();
+  if (location.hash !== hash) return;
+  drawFinance(tab);
+}
+function drawFinance(tab) {
+  const debts = financeDebts(fin.deals, fin.lines, fin.pays, todayIso(), carrierName, clientName);
+  const cur = FIN_TABS[tab === 'in' ? 1 : tab === 'payments' ? 2 : 0][0];
+  const head = '<div class="top"><div><h1>Финансы</h1><div class="sub">Суммы в валюте заказа, итоги — в евро по курсу заказа. Черновики не учитываются.</div></div></div>' +
+    (fin.err ? '<div class="err">Данные загрузились не полностью: ' + esc(fin.err) + '</div>' : '') +
+    '<nav class="tabs" aria-label="Разделы финансов">' + FIN_TABS.map(([h, t]) => '<a href="' + h + '"' + (h === cur ? ' class="active" aria-current="page"' : '') + '>' + t + '</a>').join('') + '</nav>';
+  let body = '';
+  if (tab === 'in') body = owedHtml(debts.owedToUs);
+  else if (tab === 'payments') body = paymentsHtml();
+  else body = weOweHtml(debts.weOwe);
+  $('view').innerHTML = head + body;
+  if (tab === 'payments') bindPayments(); else bindPayButtons(debts, tab);
+}
+const summaryHtml = (label, d, count, unit) =>
+  '<div class="metrics fin-sum"><div class="metric"><div class="l">' + label + '</div><div class="v">' + eur(d.totalEur) + '</div></div>' +
+  '<div class="metric"><div class="l">Из них просрочено</div><div class="v ' + (d.overdueEur > 0.005 ? 'neg' : '') + '">' + eur(d.overdueEur) + '</div></div>' +
+  '<div class="metric"><div class="l">' + unit + '</div><div class="v">' + count + '</div></div></div>';
+const dueCell = (it) => '<td style="white-space:nowrap"' + (it.overdue ? ' class="neg"' : '') + '>' + fdate(it.due) + (it.overdue ? '<span class="eq" style="color:inherit">просрочено</span>' : '') + '</td>';
+const groupHead = (g) => '<h3>' + esc(g.name) + ' <span class="gsum">' + curSums(g.byCur) +
+  (Object.keys(g.byCur).some((x) => x !== 'EUR') ? ' ≈ ' + eur(g.totalEur) : '') +
+  (g.overdueEur > 0.005 ? ' · <span class="neg">просрочено ' + eur(g.overdueEur) + '</span>' : '') + '</span></h3>';
+
+function weOweHtml(d) {
+  return summaryHtml('Мы должны всего', d, d.groups.length, 'Контрагентов') +
+    (d.unassigned ? '<div class="warnbox">Строк расхода без контрагента: ' + d.unassigned + '. Они не попали в долги — укажите контрагента в карточке заказа.</div>' : '') +
+    (!d.groups.length ? '<div class="card"><div class="pad muted">Неоплаченных счетов нет</div></div>' :
+    d.groups.map((g) => '<div class="card">' + groupHead(g) +
+      '<div class="scroll"><table class="tbl-sm fin-t"><thead><tr><th>Заказ</th><th>Строка</th><th>Счёт</th><th>Срок</th><th class="r">К оплате</th><th class="r">Оплачено</th><th class="r">Осталось</th><th></th></tr></thead><tbody>' +
+      g.items.map((it) => '<tr' + (it.overdue ? ' class="overdue"' : '') + '><td><a href="#/deal/' + esc(it.deal.id) + '">' + esc(it.deal.title || 'Без названия') + '</a></td>' +
+        '<td>' + esc(it.line.name) + '</td><td>' + esc(it.line.invoice_no || '—') + '</td>' + dueCell(it) +
+        '<td class="r">' + money(it.payable, it.cur) + '</td><td class="r">' + (it.paid ? money(it.paid, it.cur) : '—') + '</td>' +
+        '<td class="r" style="font-weight:600">' + moneyEq(it.left, it.deal) + '</td>' +
+        '<td class="r"><button class="btn small" type="button" data-pay-line="' + esc(it.line.id) + '">Оплатить</button></td></tr>').join('') +
+      '</tbody></table></div></div>').join(''));
+}
+function owedHtml(d) {
+  return summaryHtml('Нам должны всего', d, d.groups.length, 'Клиентов') +
+    (!d.groups.length ? '<div class="card"><div class="pad muted">Неоплаченных заказов нет</div></div>' :
+    d.groups.map((g) => '<div class="card">' + groupHead(g) +
+      '<div class="scroll"><table class="tbl-sm fin-t fin-in"><thead><tr><th>Заказ</th><th>Загрузка</th><th>Срок оплаты</th><th class="r">Выставлено</th><th class="r">Оплачено</th><th class="r">Осталось</th><th></th></tr></thead><tbody>' +
+      g.items.map((it) => '<tr' + (it.overdue ? ' class="overdue"' : '') + '><td><a href="#/deal/' + esc(it.deal.id) + '">' + esc(it.deal.title || 'Без названия') + '</a></td>' +
+        '<td style="white-space:nowrap">' + fdate(it.deal.start_date) + '</td>' + dueCell(it) +
+        '<td class="r">' + money(it.invoiced, it.cur) + '</td><td class="r">' + (it.paid ? money(it.paid, it.cur) : '—') + '</td>' +
+        '<td class="r" style="font-weight:600">' + moneyEq(it.left, it.deal) + '</td>' +
+        '<td class="r"><button class="btn small" type="button" data-pay-deal="' + esc(it.deal.id) + '">Клиент оплатил</button></td></tr>').join('') +
+      '</tbody></table></div></div>').join(''));
+}
+function bindPayButtons(debts, tab) {
+  const items = (tab === 'in' ? debts.owedToUs : debts.weOwe).groups.reduce((a, g) => a.concat(g.items), []);
+  document.querySelectorAll('[data-pay-line]').forEach((b) => {
+    const it = items.find((x) => x.line && x.line.id === b.getAttribute('data-pay-line'));
+    b.onclick = () => openPayModal('Оплата контрагенту', carrierName(it.line.carrier_id) + ' · ' + (it.deal.title || '') + ' · ' + it.line.name, it,
+      (v) => ({direction: 'out', deal_id: it.deal.id, deal_line_id: it.line.id, carrier_id: it.line.carrier_id, client_id: null}), tab);
+  });
+  document.querySelectorAll('[data-pay-deal]').forEach((b) => {
+    const it = items.find((x) => x.deal.id === b.getAttribute('data-pay-deal'));
+    b.onclick = () => openPayModal('Клиент оплатил', (clientName(it.deal.client_id) || 'Без клиента') + ' · ' + (it.deal.title || ''), it,
+      (v) => ({direction: 'in', deal_id: it.deal.id, deal_line_id: null, carrier_id: null, client_id: it.deal.client_id || null}), tab);
+  });
+}
+function openPayModal(heading, sub, it, base, tab) {
+  const leftR = Math.round(it.left * 100) / 100;
+  $('modalRoot').innerHTML =
+    '<div class="overlay"><form class="modal" id="payForm" role="dialog" aria-label="' + esc(heading) + '"><h2>' + esc(heading) + '</h2><div class="sub">' + esc(sub) + '</div><div id="payErr" class="err hidden"></div>' +
+    '<div class="f2"><div><label for="pAmount">Сумма, ' + (CUR_SIGN[it.cur] || esc(it.cur)) + '</label><input id="pAmount" inputmode="decimal" value="' + String(leftR).replace('.', ',') + '"><div class="sub">Осталось: ' + money(it.left, it.cur) + '</div></div>' +
+    '<div><label for="pDate">Дата оплаты</label><input id="pDate" type="date" value="' + todayIso() + '" required></div></div>' +
+    '<div><label for="pNote">Комментарий</label><input id="pNote" placeholder="Необязательно"></div>' +
+    '<div class="acts"><button class="btn ghost" type="button" id="payCancel">Отмена</button><button class="btn" type="submit" id="paySave">Сохранить платёж</button></div></form></div>';
+  $('pAmount').focus(); $('pAmount').select();
+  $('payCancel').onclick = () => { $('modalRoot').innerHTML = ''; };
+  $('payForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const box = $('payErr'); box.classList.add('hidden');
+    const amount = numOrNull($('pAmount').value), date = $('pDate').value;
+    const fail = (m) => { box.textContent = m; box.classList.remove('hidden'); };
+    if (amount == null || Number.isNaN(amount) || amount <= 0) return fail('Укажите сумму больше нуля.');
+    if (amount > it.left + 0.005) return fail('Сумма больше остатка (' + money(it.left, it.cur) + ').');
+    if (!date) return fail('Укажите дату оплаты.');
+    const btn = $('paySave'); btn.disabled = true; btn.textContent = 'Сохраняю...';
+    const row = Object.assign(base(), {amount: amount, currency: it.cur, paid_at: date, note: $('pNote').value.trim() || null});
+    const r = await db.from('payments').insert(row);
+    if (r.error) { fail('Не удалось сохранить: ' + r.error.message); btn.disabled = false; btn.textContent = 'Сохранить платёж'; return; }
+    $('modalRoot').innerHTML = '';
+    await loadFinance();
+    drawFinance(tab);
+  };
+}
+function paymentsHtml() {
+  const f = paysFilter, range = periodRange(f);
+  const dealOf = new Map(fin.deals.map((d) => [d.id, d]));
+  const rows = fin.pays.filter((p) => (!f.dir || p.direction === f.dir) && inRange(p.paid_at, range));
+  const eqEur = (p) => {
+    const d = dealOf.get(p.deal_id), c = p.currency || 'EUR';
+    if (c === 'EUR') return '';
+    if (!d || dealCur(d) !== c) return '';
+    return '<span class="eq">≈ ' + eur(numOr(p.amount, 0) * dealFx(d)) + '</span>';
+  };
+  return periodHtml(f, 'y') +
+    '<div class="filters"><div><label for="yDir">Направление</label><select id="yDir">' +
+      [['', 'Все'], ['out', 'Мы заплатили'], ['in', 'Нам заплатили']].map(([k, v]) => '<option value="' + k + '"' + (k === f.dir ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></div>' +
+      '<div class="cnt muted">Платежей: ' + rows.length + '</div></div>' +
+    '<div class="card">' + (!rows.length ? '<div class="pad muted">Платежей нет</div>' :
+      '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Дата</th><th>Направление</th><th>Кто</th><th>Заказ</th><th class="r">Сумма</th><th>Валюта</th><th>Комментарий</th><th></th></tr></thead><tbody>' +
+      rows.map((p) => {
+        const d = dealOf.get(p.deal_id), who = p.direction === 'out' ? carrierName(p.carrier_id) : clientName(p.client_id);
+        return '<tr><td style="white-space:nowrap">' + fdate(p.paid_at) + '</td>' +
+          '<td>' + (p.direction === 'out' ? '<span class="kind k-out">Мы заплатили</span>' : '<span class="kind k-in">Нам заплатили</span>') + '</td>' +
+          '<td>' + (who ? esc(who) : '<span class="muted">—</span>') + '</td>' +
+          '<td>' + (d ? '<a href="#/deal/' + esc(d.id) + '">' + esc(d.title || 'Без названия') + '</a>' : '<span class="muted">—</span>') + '</td>' +
+          '<td class="r">' + money(numOr(p.amount, 0), p.currency || 'EUR') + eqEur(p) + '</td>' +
+          '<td>' + esc(p.currency || '') + '</td><td>' + esc(p.note || '') + '</td>' +
+          '<td class="r"><button class="x" type="button" data-del-pay="' + esc(p.id) + '" aria-label="Удалить платёж" title="Удалить ошибочный платёж">×</button></td></tr>';
+      }).join('') + '</tbody></table></div>') + '</div>';
+}
+function bindPayments() {
+  bindPeriod(paysFilter, 'y', () => drawFinance('payments'));
+  $('yDir').onchange = (e) => { paysFilter.dir = e.target.value; drawFinance('payments'); };
+  document.querySelectorAll('[data-del-pay]').forEach((b) => {
+    b.onclick = async () => {
+      const p = fin.pays.find((x) => x.id === b.getAttribute('data-del-pay'));
+      if (!p || !confirm('Удалить платёж ' + money(numOr(p.amount, 0), p.currency || 'EUR') + ' от ' + fdate(p.paid_at) + '? Долг снова увеличится на эту сумму. Отменить удаление нельзя.')) return;
+      const r = await db.from('payments').delete().eq('id', p.id);
+      if (r.error) { alert('Не удалось удалить: ' + r.error.message); return; }
+      await loadFinance();
+      drawFinance('payments');
+    };
+  });
+}
+
 function route() {
   const h = location.hash || '#/';
   if (h.startsWith('#/trip/')) return renderTrip(h.slice(7));
@@ -1240,6 +1617,10 @@ function route() {
   if (h === '#/deals') { ordersFilter.kind = 'deal'; location.replace('#/orders'); return; }
   if (h === '#/orders/new') return renderNewOrder();
   if (h === '#/orders') return renderOrders();
+  if (h === '#/contractors') return renderCarriers();
+  if (h === '#/finance') return renderFinance('out');
+  if (h === '#/finance/in') return renderFinance('in');
+  if (h === '#/finance/payments') return renderFinance('payments');
   return renderDashboard();
 }
 
