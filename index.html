@@ -98,6 +98,7 @@ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;bac
 .dfields>div{flex:1 1 68px;min-width:0}
 .dfields>.w{flex:2 1 120px}
 .dfields>.dt{flex:1 1 130px}
+.eq{display:block;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap}
 .period{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--field);border-radius:8px;overflow:hidden;background:#fff}
 .seg button{padding:8px 12px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;border:0;border-left:1px solid var(--line);cursor:pointer}
@@ -208,10 +209,27 @@ async function loadAll() {
 let deals = [], dealsErr = null, dealsLoadedAt = 0;
 async function loadDeals() {
   const r = await db.from('deals')
-    .select('id, client_id, status, tax_rate, final_price, qty_marks, qty_stickers, start_date, clients(name), deal_lines(basis, cost_rate, sale_rate)')
+    .select('id, client_id, status, tax_rate, final_price, qty_marks, qty_stickers, start_date, currency, fx_to_eur, clients(name), deal_lines(basis, cost_rate, sale_rate)')
     .in('status', ['active', 'done']);
   if (r.error) { deals = []; dealsErr = r.error.message; } else { deals = r.data; dealsErr = null; }
   dealsLoadedAt = Date.now();
+}
+
+// Валюта сделки. Суммы сделки хранятся в её валюте; в евро = сумма × fx_to_eur. Для EUR курс всегда 1.
+const CUR_SIGN = {EUR: '€', USD: '$'};
+const dealCur = (d) => (d && d.currency) || 'EUR';
+function dealFx(d) {
+  if (dealCur(d) === 'EUR') return 1;
+  const x = Number(d.fx_to_eur);
+  return (d.fx_to_eur != null && d.fx_to_eur !== '' && isFinite(x) && x > 0) ? x : 1;
+}
+const money = (n, cur, fine) => (n == null || n === '' || !isFinite(n)) ? '—' :
+  (CUR_SIGN[cur] || (esc(cur) + ' ')) + Number(n).toLocaleString('ru-RU', fine ? {minimumFractionDigits: 2, maximumFractionDigits: 4} : {maximumFractionDigits: 2});
+// Сумма в валюте сделки, а для не-EUR рядом мелко эквивалент в евро.
+function moneyEq(n, d) {
+  const cur = dealCur(d);
+  if (cur === 'EUR' || n == null || !isFinite(n)) return money(n, cur);
+  return money(n, cur) + ' <span class="eq">≈ ' + money(n * dealFx(d), 'EUR') + '</span>';
 }
 
 // Период дашборда (по дате загрузки). range = null — «Всё время»; иначе {from, to} в виде 'ГГГГ-ММ-ДД', любая граница может быть пустой.
@@ -254,8 +272,8 @@ function dashboardTotals(tripRows, dealRows, range) {
     add(t.client_id, t.clients && t.clients.name, Number(t.income_eur) || 0, Number(t.cost_eur) || 0, Number(t.tax_eur) || 0);
   });
   counted.forEach((d) => {
-    const b = calcDeal(d, d.deal_lines).billed;
-    add(d.client_id, d.clients && d.clients.name, b.price, b.cost, b.tax);
+    const b = calcDeal(d, d.deal_lines).billed, fx = dealFx(d);
+    add(d.client_id, d.clients && d.clients.name, b.price * fx, b.cost * fx, b.tax * fx);
   });
   const fin = (x) => Object.assign(x, {profit: x.income - x.cost - x.tax, margin: x.income ? (x.income - x.cost - x.tax) / x.income : null});
   const byClient = Array.from(groups.values()).map(fin).sort((a, b) => b.profit - a.profit);
@@ -586,8 +604,8 @@ async function renderDeals() {
           '<td style="white-space:nowrap">' + fdate(d.start_date) + '</td>' +
           '<td style="white-space:nowrap">' + fdate(d.end_date) + '</td>' +
           '<td>' + dealStatusChip(d.status) + '</td>' +
-          '<td class="r">' + eur(res.billed.price) + '</td>' +
-          '<td class="r ' + (res.billed.profit >= 0 ? 'pos' : 'neg') + '">' + eur(res.billed.profit) + '</td></tr>';
+          '<td class="r">' + moneyEq(res.billed.price, d) + '</td>' +
+          '<td class="r ' + (res.billed.profit >= 0 ? 'pos' : 'neg') + '">' + moneyEq(res.billed.profit, d) + '</td></tr>';
       }).join('') + '</tbody></table></div>') + '</div>';
   }
   $('newDealBtn').onclick = (e) => createDeal(e.currentTarget);
@@ -655,6 +673,9 @@ function drawDeal(okMsg) {
   if (d.tax_rate != null && !taxOpts.includes(Number(d.tax_rate))) taxOpts.push(Number(d.tax_rate));
   const val = (v) => v == null ? '' : esc(v);
   const compOpts = COMPANIES.slice();
+  const cur = dealCur(d), sign = CUR_SIGN[cur] || esc(cur);
+  const curOpts = Object.keys(CUR_SIGN);
+  if (!curOpts.includes(cur)) curOpts.push(cur);
   if (d.company && !compOpts.includes(d.company)) compOpts.push(d.company);
   $('view').innerHTML =
     '<div class="dealv">' +
@@ -670,14 +691,16 @@ function drawDeal(okMsg) {
         '<div><label for="dStickers" title="Бутылок под стикеры">Бут. под стикеры</label><input id="dStickers" inputmode="numeric" value="' + val(d.qty_stickers) + '"></div>' +
         '<div><label for="dPallets">Палет</label><input id="dPallets" inputmode="numeric" value="' + val(d.pallets) + '"></div>' +
         '<div><label for="dTax">Налог</label><select id="dTax">' + taxOpts.map((t) => '<option value="' + t + '"' + (Number(d.tax_rate) === t ? ' selected' : '') + '>' + pct(t) + '</option>').join('') + '</select></div>' +
-        '<div><label for="dFinal" title="Итоговая цена клиенту. Если пусто, берётся цена по расчёту">Выставлено, €</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
+        '<div><label for="dFinal" title="Итоговая цена клиенту. Если пусто, берётся цена по расчёту">Выставлено, ' + sign + '</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
+        '<div><label for="dCur">Валюта</label><select id="dCur">' + curOpts.map((c) => '<option value="' + esc(c) + '"' + (c === cur ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>' +
+        (cur === 'EUR' ? '' : '<div><label for="dFx" title="Сколько евро в 1 ' + esc(cur) + '. Сумма × курс = сумма в евро">1 ' + sign + ' = … €</label><input id="dFx" inputmode="decimal" value="' + val(d.fx_to_eur) + '" placeholder="курс"></div>') +
         '<div class="dt"><label for="dStart">Загрузка</label><input id="dStart" type="date" value="' + val(d.start_date) + '"></div>' +
         '<div class="dt"><label for="dEnd" title="Выгрузка на складе">Выгрузка на складе</label><input id="dEnd" type="date" value="' + val(d.end_date) + '"></div>' +
         '<div class="w"><label for="dCompany">Компания</label><select id="dCompany"><option value="">— не выбрана —</option>' +
           compOpts.map((c) => '<option value="' + esc(c) + '"' + (d.company === c ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>' +
       '</div></section>' +
       '<section class="card" aria-label="Статьи расчёта"><div class="lines-wrap"><table class="lines"><thead><tr>' +
-        '<th>Статья</th><th>Основа</th><th class="r" title="Ставка себестоимости">Себест./ед., €</th><th class="r" title="Ставка продажи">Продажа/ед., €</th><th class="r">Себестоимость</th><th class="r">Продажа</th><th class="r">Разница</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
+        '<th>Статья</th><th>Основа</th><th class="r" title="Ставка себестоимости">Себест./ед., ' + sign + '</th><th class="r" title="Ставка продажи">Продажа/ед., ' + sign + '</th><th class="r">Себестоимость</th><th class="r">Продажа</th><th class="r">Разница</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
         '</tr></thead><tbody id="dLines">' + s.lines.map(dealLineRow).join('') + '</tbody></table></div>' +
         '<div class="addrow"><label for="addLine" class="sr">Добавить строку</label><select id="addLine"><option value="">Своя строка</option>' +
           s.catalog.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select>' +
@@ -698,6 +721,8 @@ function drawDeal(okMsg) {
   $('dStart').onchange = (e) => { d.start_date = e.target.value || null; };
   $('dEnd').onchange = (e) => { d.end_date = e.target.value || null; };
   $('dCompany').onchange = (e) => { d.company = e.target.value || null; };
+  $('dCur').onchange = (e) => { d.currency = e.target.value; drawDeal(); };
+  if ($('dFx')) bindNum('dFx', 'fx_to_eur');
 
   const onLine = (e) => {
     const tr = e.target.closest('tr[data-key]'); const f = e.target.getAttribute('data-f');
@@ -736,26 +761,30 @@ function drawDeal(okMsg) {
 }
 
 function updateDealCalc() {
-  const s = dealState, res = calcDeal(s.deal, s.lines);
+  const s = dealState, res = calcDeal(s.deal, s.lines), cur = dealCur(s.deal);
+  const m = (n) => money(n, cur), mFine = (n) => money(n, cur, true);
   s.lines.forEach((l, i) => {
     const tr = document.querySelector('#dLines tr[data-key="' + l.key + '"]');
     if (!tr) return;
     const r = res.rows[i];
-    tr.querySelector('[data-c="cost"]').textContent = l.cost_rate == null ? '—' : eur(r.cost);
-    tr.querySelector('[data-c="sale"]').textContent = l.sale_rate == null ? '—' : eur(r.sale);
+    tr.querySelector('[data-c="cost"]').textContent = l.cost_rate == null ? '—' : m(r.cost);
+    tr.querySelector('[data-c="sale"]').textContent = l.sale_rate == null ? '—' : m(r.sale);
     const dc = tr.querySelector('[data-c="diff"]');
-    dc.textContent = (l.cost_rate == null && l.sale_rate == null) ? '—' : eur(r.diff);
+    dc.textContent = (l.cost_rate == null && l.sale_rate == null) ? '—' : m(r.diff);
     dc.className = 'r ' + (r.diff >= 0 ? 'pos' : 'neg');
   });
   const a = res.calc, b = res.billed;
   const line = (label, f, fmt, cls) => '<tr><td' + (cls ? ' style="font-weight:600"' : '') + '>' + label + '</td>' +
     [a, b].map((x) => '<td class="r' + (cls ? ' ' + (x[f] >= 0 ? 'pos' : 'neg') : '') + '">' + fmt(x[f]) + '</td>').join('') + '</tr>';
+  const mEq = (n) => moneyEq(n, s.deal);
   $('dTot').innerHTML =
-    line('Цена', 'price', eur) + line('Себестоимость', 'cost', eur) + line('Разница', 'diff', eur) +
-    line('Налог (' + pct(Number(s.deal.tax_rate) || 0) + ')', 'tax', eur) + line('Прибыль', 'profit', eur, true) +
-    line('Маржа', 'margin', pct) + line('Цена за бутылку (марки)', 'perMark', eurFine);
-  $('dWarn').innerHTML = res.unconfirmed ? '<div class="warnbox">Есть строки «не подтверждено»: итог может быть неполным.</div>' : '';
-  $('dFinal').placeholder = eur(a.price);
+    line('Цена', 'price', mEq) + line('Себестоимость', 'cost', mEq) + line('Разница', 'diff', mEq) +
+    line('Налог (' + pct(Number(s.deal.tax_rate) || 0) + ')', 'tax', mEq) + line('Прибыль', 'profit', mEq, true) +
+    line('Маржа', 'margin', pct) + line('Цена за бутылку (марки)', 'perMark', mFine);
+  const fxNum = Number(s.deal.fx_to_eur);
+  $('dWarn').innerHTML = (res.unconfirmed ? '<div class="warnbox">Есть строки «не подтверждено»: итог может быть неполным.</div>' : '') +
+    (cur !== 'EUR' && fxNum === 1 ? '<div class="warnbox">Курс к евро равен 1. Проверьте, что он указан верно.</div>' : '');
+  $('dFinal').placeholder = m(a.price);
 }
 
 async function saveDeal(activate) {
@@ -768,6 +797,7 @@ async function saveDeal(activate) {
     if (v != null && !(Number.isInteger(v) && v >= 0)) return fail('Количество бутылок и палет: только целые числа без минуса.');
   }
   if (d.final_price != null && Number.isNaN(d.final_price)) return fail('Проверьте поле «Выставлено клиенту»: только цифры.');
+  if (dealCur(d) !== 'EUR' && !(d.fx_to_eur != null && d.fx_to_eur !== '' && isFinite(Number(d.fx_to_eur)) && Number(d.fx_to_eur) > 0)) return fail('Укажите курс к евро: число больше нуля, например 0,92.');
   if (d.start_date && d.end_date && d.end_date < d.start_date) return fail('Дата выгрузки на складе раньше даты загрузки. Проверьте даты.');
   for (const l of s.lines) {
     if (!String(l.name || '').trim()) return fail('У каждой строки должно быть название.');
@@ -781,7 +811,8 @@ async function saveDeal(activate) {
     const row = {title: title, client_id: cid, qty_marks: d.qty_marks == null ? 0 : d.qty_marks,
       qty_stickers: d.qty_stickers == null ? 0 : d.qty_stickers, pallets: d.pallets,
       tax_rate: Number(d.tax_rate) || 0, final_price: d.final_price,
-      start_date: d.start_date || null, end_date: d.end_date || null, company: d.company || null};
+      start_date: d.start_date || null, end_date: d.end_date || null, company: d.company || null,
+      currency: dealCur(d), fx_to_eur: dealCur(d) === 'EUR' ? 1 : Number(d.fx_to_eur)};
     if (activate) row.status = 'active';
     let r = await db.from('deals').update(row).eq('id', s.id);
     if (r.error) throw r.error;
