@@ -99,6 +99,8 @@ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;bac
 .dfields>.w{flex:2 1 120px}
 .dfields>.dt{flex:1 1 130px}
 .dfields>.w3{flex:3 1 200px}
+.dfields>.fx{flex:2 1 170px}
+.dfields .hint{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.3}
 .eq{display:block;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap}
 .filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
 .filters>div{flex:0 1 200px;min-width:140px}
@@ -234,15 +236,30 @@ async function loadDeals() {
 }
 
 // Валюта сделки. Суммы сделки хранятся в её валюте; в евро = сумма × fx_to_eur. Для EUR курс всегда 1.
-const CUR_SIGN = {EUR: '€', USD: '$'};
+const CUR_SIGN = {EUR: '€', USD: '$', UAH: '₴'};
+// Гривна пишется после суммы и всегда с копейками: «72 300,00 ₴». Евро и доллар — знак перед суммой.
+const CUR_AFTER = {UAH: true};
+const FX_PLACEHOLDER = {USD: 'напр. 0,92', UAH: 'напр. 0,0225'};
 const dealCur = (d) => (d && d.currency) || 'EUR';
 function dealFx(d) {
   if (dealCur(d) === 'EUR') return 1;
   const x = Number(d.fx_to_eur);
   return (d.fx_to_eur != null && d.fx_to_eur !== '' && isFinite(x) && x > 0) ? x : 1;
 }
-const money = (n, cur, fine) => (n == null || n === '' || !isFinite(n)) ? '—' :
-  (CUR_SIGN[cur] || (esc(cur) + ' ')) + Number(n).toLocaleString('ru-RU', fine ? {minimumFractionDigits: 2, maximumFractionDigits: 4} : {maximumFractionDigits: 2});
+const money = (n, cur, fine) => {
+  if (n == null || n === '' || !isFinite(n)) return '—';
+  if (CUR_AFTER[cur]) return Number(n).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: fine ? 4 : 2}) + '\u00a0' + CUR_SIGN[cur];
+  return (CUR_SIGN[cur] || (esc(cur) + ' ')) + Number(n).toLocaleString('ru-RU', fine ? {minimumFractionDigits: 2, maximumFractionDigits: 4} : {maximumFractionDigits: 2});
+};
+const curOption = (c, selected) => '<option value="' + esc(c) + '"' + (selected ? ' selected' : '') + '>' + esc(c) + (CUR_SIGN[c] ? ' (' + CUR_SIGN[c] + ')' : '') + '</option>';
+// Поле «Курс к EUR» для не-евро валют (для EUR поле не показывается, курс сохраняется как 1).
+function fxFieldHtml(id, cur, value) {
+  if (cur === 'EUR') return '';
+  const hint = 'Сколько EUR за 1 ' + esc(cur) + ', курс НБУ на дату загрузки';
+  return '<div class="fx"><label for="' + id + '" title="' + hint + '">Курс к EUR</label>' +
+    '<input id="' + id + '" inputmode="decimal" value="' + (value == null ? '' : esc(value)) + '" placeholder="' + (FX_PLACEHOLDER[cur] || 'курс') + '" title="' + hint + '" aria-describedby="' + id + 'Hint">' +
+    '<div class="hint" id="' + id + 'Hint">' + hint + '</div></div>';
+}
 // Сумма в валюте сделки, а для не-EUR рядом мелко эквивалент в евро.
 function moneyEq(n, d) {
   const cur = dealCur(d);
@@ -732,8 +749,8 @@ function drawDeal(okMsg) {
         '<div><label for="dPallets">Палет</label><input id="dPallets" inputmode="numeric" value="' + val(d.pallets) + '"></div>' +
         '<div><label for="dTax">Налог</label><select id="dTax">' + taxOpts.map((t) => '<option value="' + t + '"' + (Number(d.tax_rate) === t ? ' selected' : '') + '>' + pct(t) + '</option>').join('') + '</select></div>' +
         '<div><label for="dFinal" title="Итоговая цена клиенту. Если пусто, берётся цена по расчёту">Выставлено, ' + sign + '</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
-        '<div><label for="dCur">Валюта</label><select id="dCur">' + curOpts.map((c) => '<option value="' + esc(c) + '"' + (c === cur ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>' +
-        (cur === 'EUR' ? '' : '<div><label for="dFx" title="Сколько евро в 1 ' + esc(cur) + '. Сумма × курс = сумма в евро">1 ' + sign + ' = … €</label><input id="dFx" inputmode="decimal" value="' + val(d.fx_to_eur) + '" placeholder="курс"></div>') +
+        '<div><label for="dCur">Валюта</label><select id="dCur">' + curOpts.map((c) => curOption(c, c === cur)).join('') + '</select></div>' +
+        fxFieldHtml('dFx', cur, d.fx_to_eur) +
         '<div class="dt"><label for="dStart">Загрузка</label><input id="dStart" type="date" value="' + val(d.start_date) + '"></div>' +
         '<div class="dt"><label for="dEnd" title="Выгрузка на складе">Выгрузка на складе</label><input id="dEnd" type="date" value="' + val(d.end_date) + '"></div>' +
         '<div class="w"><label for="dCompany">Компания</label><select id="dCompany"><option value="">— не выбрана —</option>' +
@@ -1054,8 +1071,8 @@ function drawNewOrder() {
         '<div class="w3"><label for="noTitle">Название / маршрут</label><input id="noTitle" value="' + val(s.title) + '" placeholder="Напр. Город А — Город Б"></div>' +
         '<div class="dt"><label for="noStart">Загрузка</label><input id="noStart" type="date" value="' + val(s.start_date) + '"></div>' +
         '<div class="dt"><label for="noEnd">Выгрузка</label><input id="noEnd" type="date" value="' + val(s.end_date) + '"></div>' +
-        '<div><label for="noCur">Валюта</label><select id="noCur">' + Object.keys(CUR_SIGN).map((c) => '<option value="' + c + '"' + (c === cur ? ' selected' : '') + '>' + c + '</option>').join('') + '</select></div>' +
-        (cur === 'EUR' ? '' : '<div><label for="noFx" title="Сколько евро в 1 ' + esc(cur) + '. Сумма × курс = сумма в евро">1 ' + sign + ' = … €</label><input id="noFx" inputmode="decimal" value="' + val(s.fx_to_eur) + '" placeholder="напр. 0,92"></div>') +
+        '<div><label for="noCur">Валюта</label><select id="noCur">' + Object.keys(CUR_SIGN).map((c) => curOption(c, c === cur)).join('') + '</select></div>' +
+        fxFieldHtml('noFx', cur, s.fx_to_eur) +
         '<div><label for="noIncome">Доход, ' + sign + '</label><input id="noIncome" inputmode="decimal" value="' + val(s.income) + '"' + (s.services ? ' readonly title="Считается из расчёта по услугам"' : '') + '></div>' +
         '<div><label for="noCost">Затраты, ' + sign + '</label><input id="noCost" inputmode="decimal" value="' + val(s.cost) + '"' + (s.services ? ' readonly title="Считается из расчёта по услугам"' : '') + '></div>' +
       '</div>' +
