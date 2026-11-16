@@ -98,7 +98,21 @@ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;bac
 .dfields>div{flex:1 1 68px;min-width:0}
 .dfields>.w{flex:2 1 120px}
 .dfields>.dt{flex:1 1 130px}
+.dfields>.w3{flex:3 1 200px}
 .eq{display:block;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap}
+.filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.filters>div{flex:0 1 200px;min-width:140px}
+.filters label{font-size:12px;color:var(--muted);margin-bottom:3px;display:block}
+.filters select{padding:8px 10px;font-size:13px}
+.filters .cnt{flex:1 1 auto;font-size:13px;padding-bottom:9px;text-align:right}
+table.orders{min-width:860px}
+table.orders tbody tr[data-href]{cursor:pointer}
+table.orders tbody tr[data-href]:hover td{background:#F7F9FC}
+.kind{display:inline-block;font-size:12px;padding:3px 9px;border-radius:12px;white-space:nowrap}
+.k-trip{background:#EEF1F5;color:var(--muted)}
+.k-deal{background:#E6EDF6;color:var(--navy);font-weight:500}
+.toggle{display:flex;align-items:center;gap:8px;padding:0 14px 12px;font-size:13px;cursor:pointer;width:max-content}
+.toggle input{width:auto}
 .period{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--field);border-radius:8px;overflow:hidden;background:#fff}
 .seg button{padding:8px 12px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;border:0;border-left:1px solid var(--line);cursor:pointer}
@@ -163,8 +177,7 @@ pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font-size:12px;bac
     <div class="brand">TradeWay</div>
     <nav>
       <a href="#/" id="nav-home">Дашборд</a>
-      <a href="#/trips" id="nav-trips">Рейсы</a>
-      <a href="#/deals" id="nav-deals">Расчёты</a>
+      <a href="#/orders" id="nav-orders">Заказы</a>
     </nav>
     <div class="spacer"></div>
     <button class="btn ghost small" id="logoutBtn" type="button">Выйти</button>
@@ -202,7 +215,7 @@ async function loadAll() {
   if (c.error) throw c.error;
   if (k.error) throw k.error;
   trips = t.data; clients = c.data; carriers = k.data;
-  await loadDeals();
+  await loadOrders();
 }
 
 // Сделки для дашборда: только active и done. Ошибка не ломает дашборд, а показывается плашкой.
@@ -291,8 +304,7 @@ function showError(msg) {
 
 function setNav(active) {
   $('nav-home').classList.toggle('active', active === 'home');
-  $('nav-trips').classList.toggle('active', active === 'trips');
-  $('nav-deals').classList.toggle('active', active === 'deals');
+  $('nav-orders').classList.toggle('active', active === 'orders' || active === 'trips' || active === 'deals');
 }
 
 function tripStatus(t) {
@@ -327,20 +339,15 @@ const PERIODS = [['all', 'Всё время'], ['month', 'Этот месяц'],
 function renderDashboard(fresh) {
   setNav('home');
   const range = periodRange(dashPeriod);
-  const tot = dashboardTotals(trips, deals, range);
+  const tot = ordersTotals(orders, range, clientName);
   const inc = tot.income, tax = tot.tax, pr = tot.profit;
   const margin = inc > 0 ? (pr / inc * 100) : 0;
-  const noClient = trips.filter((t) => !t.clients).length;
-  const periodNote = !range ? '' : ' · период: ' + (range.from ? fdate(range.from) : '…') + ' — ' + (range.to ? fdate(range.to) : '…') + ', записи без даты загрузки не входят';
+  const recent = filterOrders(orders, {}, null).slice(0, 8);
   $('view').innerHTML =
-    '<div class="top" id="dashTop"><div><h1>Дашборд</h1><div class="sub">Рейсы и сделки (без черновиков). Чистая прибыль: доход минус расход минус налог' + periodNote + '</div></div>' +
-    '<button class="btn" id="newTripBtn" type="button">Новый рейс</button></div>' +
-    '<div class="period"><div class="seg" role="group" aria-label="Период по дате загрузки">' +
-      PERIODS.map(([k, v]) => '<button type="button" data-p="' + k + '" aria-pressed="' + (dashPeriod.mode === k) + '">' + v + '</button>').join('') + '</div>' +
-      (dashPeriod.mode === 'custom' ? '<div class="rng"><label for="pFrom">с</label><input type="date" id="pFrom" value="' + esc(dashPeriod.from) + '">' +
-        '<label for="pTo">по</label><input type="date" id="pTo" value="' + esc(dashPeriod.to) + '"></div>' : '') +
-    '</div>' +
-    (dealsErr ? '<div class="err">Сделки не загрузились, на дашборде только рейсы: ' + esc(dealsErr) + '</div>' : '') +
+    '<div class="top" id="dashTop"><div><h1>Дашборд</h1><div class="sub">Заказы: рейсы и сделки, без черновиков. Суммы в евро. Чистая прибыль: доход минус расход минус налог. ' + periodNote(range) + '</div></div>' +
+    '<a class="btn" href="#/orders/new" style="text-decoration:none">+ Новый заказ</a></div>' +
+    periodHtml(dashPeriod, 'p') +
+    (ordersErr ? '<div class="err">Заказы не загрузились, цифры дашборда неполные: ' + esc(ordersErr) + '</div>' : '') +
     '<div class="metrics">' +
       '<div class="metric"><div class="l">Доход</div><div class="v">' + eur(inc) + '</div></div>' +
       '<div class="metric"><div class="l">Налоги</div><div class="v">' + eur(tax) + '</div></div>' +
@@ -349,7 +356,7 @@ function renderDashboard(fresh) {
       '<div class="metric"><div class="l">Рейсов</div><div class="v">' + tot.tripsCount + '</div></div>' +
       '<div class="metric"><div class="l">Сделок</div><div class="v">' + tot.dealsCount + '</div></div>' +
     '</div>' +
-    (noClient ? '<div class="card"><div class="row"><div><strong>У ' + noClient + ' рейсов не указан клиент.</strong><div class="sub">Откройте рейс и назначьте клиента, тогда он появится в отчётах по клиентам.</div></div><a class="btn ghost small" href="#/trips" style="text-decoration:none">Показать рейсы</a></div></div>' : '') +
+    (tot.noClientCount ? '<div class="card"><div class="row"><div><strong>У ' + tot.noClientCount + ' заказов не указан клиент.</strong><div class="sub">Откройте заказ и назначьте клиента, тогда он появится в отчётах по клиентам.</div></div><button class="btn ghost small" id="showNoClient" type="button">Показать заказы</button></div></div>' : '') +
     '<div class="card"><h3>Прибыль по клиентам</h3>' + (!tot.byClient.length ? '<div class="pad muted">Данных пока нет</div>' :
       '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Клиент</th><th class="r">Доход</th><th class="r">Чистая прибыль</th><th class="r">Маржа</th></tr></thead><tbody>' +
       tot.byClient.map((g) => '<tr><td>' + (g.noClient ? '<span class="muted">Без клиента</span>' : esc(g.name)) + '</td>' +
@@ -357,18 +364,16 @@ function renderDashboard(fresh) {
         '<td class="r ' + (g.profit >= 0 ? 'pos' : 'neg') + '">' + eur(g.profit) + '</td>' +
         '<td class="r">' + pct(g.margin) + '</td></tr>').join('') +
       '</tbody></table></div>') + '</div>' +
-    '<div class="card"><h3>Последние рейсы</h3>' + tripsTable(trips.slice(0, 8)) + '</div>';
-  $('newTripBtn').onclick = openNewTrip;
-  document.querySelectorAll('.seg [data-p]').forEach((b) => {
-    b.onclick = () => { dashPeriod.mode = b.getAttribute('data-p'); renderDashboard(true); };
-  });
-  if ($('pFrom')) {
-    $('pFrom').onchange = (e) => { dashPeriod.from = e.target.value; renderDashboard(true); };
-    $('pTo').onchange = (e) => { dashPeriod.to = e.target.value; renderDashboard(true); };
-  }
-  // Сделки могли измениться на экране «Расчёты»: подгружаем свежие и перерисовываем один раз.
-  if (!fresh && Date.now() - dealsLoadedAt > 3000) {
-    loadDeals().then(() => { if ($('dashTop')) renderDashboard(true); });
+    '<div class="card" id="recentCard"><h3>Последние заказы</h3>' + ordersTable(recent) + '</div>';
+  bindPeriod(dashPeriod, 'p', () => renderDashboard(true));
+  bindOrderRows($('recentCard'));
+  if ($('showNoClient')) $('showNoClient').onclick = () => {
+    Object.assign(ordersFilter, {mode: dashPeriod.mode, from: dashPeriod.from, to: dashPeriod.to, client: '__none', kind: '', status: ''});
+    location.hash = '#/orders';
+  };
+  // Заказы могли измениться в карточках: подгружаем свежие и перерисовываем один раз.
+  if (!fresh && Date.now() - ordersLoadedAt > 3000) {
+    loadOrders().then(() => { if ($('dashTop')) renderDashboard(true); });
   }
 }
 
@@ -389,15 +394,15 @@ function renderTrips() {
 }
 
 async function renderTrip(id) {
-  setNav('trips');
+  setNav('orders');
   const t = trips.find((x) => x.id === id);
-  if (!t) { $('view').innerHTML = '<div class="err">Рейс не найден</div><a href="#/trips">К списку рейсов</a>'; return; }
+  if (!t) { $('view').innerHTML = '<div class="err">Рейс не найден</div><a href="#/orders">К списку заказов</a>'; return; }
   const dr = await db.from('documents').select('*').eq('trip_id', id).order('created_at');
   const docs = dr.error ? [] : dr.data;
   const p = profit(t);
   const legacy = t.legacy ? Object.entries(t.legacy).map(([k, v]) => esc(k) + ': ' + esc(v)).join('\n') : '';
   $('view').innerHTML =
-    '<div><a href="#/trips" style="font-size:14px;text-decoration:none">← Все рейсы</a>' +
+    '<div><a href="#/orders" style="font-size:14px;text-decoration:none">← Все заказы</a>' +
     '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><h1 style="margin:0;font-size:28px;letter-spacing:-.5px">Рейс ' + fdate(t.loading_date) + (t.clients ? ' · ' + esc(t.clients.name) : '') + '</h1>' + tripStatus(t) + '<button class="btn ghost small" id="editTripBtn" type="button">Редактировать</button></div></div>' +
     (dr.error ? '<div class="err">Документы не загрузились: ' + esc(dr.error.message) + '</div>' : '') +
     '<div class="cols"><div class="a">' +
@@ -634,7 +639,7 @@ let dealState = null;
 let lineSeq = 0;
 
 async function renderDeal(id, okMsg) {
-  setNav('deals');
+  setNav('orders');
   $('view').innerHTML = '<div class="muted">Загружаю расчёт...</div>';
   const [d, l, c] = await Promise.all([
     db.from('deals').select('*, clients(name)').eq('id', id).maybeSingle(),
@@ -642,7 +647,7 @@ async function renderDeal(id, okMsg) {
     db.from('service_catalog').select('*').order('sort').order('name')
   ]);
   if (location.hash !== '#/deal/' + id) return;
-  const back = '<a href="#/deals" style="font-size:14px;text-decoration:none">← Все расчёты</a>';
+  const back = '<a href="#/orders" style="font-size:14px;text-decoration:none">← Все заказы</a>';
   const e = d.error || l.error || c.error;
   if (e) { $('view').innerHTML = '<div>' + back + '</div><div class="err">Расчёт не загрузился: ' + esc(e.message) + '</div>'; return; }
   if (!d.data) { $('view').innerHTML = '<div>' + back + '</div><div class="err">Расчёт не найден</div>'; return; }
@@ -679,7 +684,7 @@ function drawDeal(okMsg) {
   if (d.company && !compOpts.includes(d.company)) compOpts.push(d.company);
   $('view').innerHTML =
     '<div class="dealv">' +
-    '<div class="deal-head"><a href="#/deals" style="font-size:14px;text-decoration:none">← Все расчёты</a>' +
+    '<div class="deal-head"><a href="#/orders" style="font-size:14px;text-decoration:none">← Все заказы</a>' +
       '<h1>' + esc(d.title || 'Без названия') + '</h1>' + dealStatusChip(d.status) + '</div>' +
     '<div id="dealErr" class="err hidden"></div>' +
     (okMsg ? '<div class="okbox">' + esc(okMsg) + '</div>' : '') +
@@ -840,12 +845,342 @@ async function saveDeal(activate) {
   }
 }
 
+/* ===== Заказы: общий список рейсов и сделок из представления orders (все суммы там уже в евро) ===== */
+const ORDER_KIND = {trip: 'Рейс', deal: 'С расчётом'};
+const ORDER_STATUS = {imported: 'Импорт', draft: 'Черновик', active: 'Активный', done: 'Завершён'};
+const ORDER_COUNTED = ['imported', 'active', 'done'];   // черновики в итоги не идут
+const NEW_ORDER_TAX = 0.18;
+const NEW_ORDER_COMPANY = COMPANIES[0];
+
+let orders = [], ordersErr = null, ordersLoadedAt = 0, ordersOkMsg = '';
+let ordersFilter = {mode: 'all', from: '', to: '', client: '', kind: '', status: ''};
+
+async function loadOrders() {
+  const r = await db.from('orders').select('*');
+  if (r.error) { orders = []; ordersErr = r.error.message; } else { orders = r.data; ordersErr = null; }
+  ordersLoadedAt = Date.now();
+}
+const clientName = (id) => { const c = clients.find((x) => x.id === id); return c ? c.name : ''; };
+const numZ = (v) => { const x = Number(v); return (v == null || v === '' || !isFinite(x)) ? 0 : x; };
+
+// Чистая функция итогов: только imported/active/done, по дате загрузки (start_date). Прибыль = сумма net_eur.
+function ordersTotals(rows, range, nameOf) {
+  const list = (rows || []).filter((o) => ORDER_COUNTED.includes(o.status) && inRange(o.start_date, range));
+  const blank = () => ({income: 0, cost: 0, tax: 0, profit: 0});
+  const tot = blank(), groups = new Map();
+  list.forEach((o) => {
+    const v = {income: numZ(o.income_eur), cost: numZ(o.cost_eur), tax: numZ(o.tax_eur), profit: numZ(o.net_eur)};
+    const key = o.client_id || '';
+    if (!groups.has(key)) groups.set(key, Object.assign(blank(), {name: key ? ((nameOf && nameOf(key)) || 'Без названия') : 'Без клиента', noClient: !key}));
+    const g = groups.get(key);
+    Object.keys(v).forEach((k) => { tot[k] += v[k]; g[k] += v[k]; });
+  });
+  const fin = (x) => Object.assign(x, {margin: x.income ? x.profit / x.income : null});
+  return Object.assign(fin(tot), {
+    count: list.length,
+    tripsCount: list.filter((o) => o.kind === 'trip').length,
+    dealsCount: list.filter((o) => o.kind === 'deal').length,
+    noClientCount: list.filter((o) => !o.client_id).length,
+    byClient: Array.from(groups.values()).map(fin).sort((a, b) => b.profit - a.profit)
+  });
+}
+// Чистая функция списка: фильтры и сортировка по дате загрузки, новые сверху, без даты в конце.
+function filterOrders(rows, f, range) {
+  return (rows || []).filter((o) => inRange(o.start_date, range) &&
+      (!f.client || (f.client === '__none' ? !o.client_id : o.client_id === f.client)) &&
+      (!f.kind || o.kind === f.kind) && (!f.status || o.status === f.status))
+    .sort((a, b) => {
+      const da = a.start_date ? String(a.start_date).slice(0, 10) : '', dbb = b.start_date ? String(b.start_date).slice(0, 10) : '';
+      if (da !== dbb) { if (!da) return 1; if (!dbb) return -1; return da < dbb ? 1 : -1; }
+      const ea = a.end_date ? String(a.end_date) : '', eb = b.end_date ? String(b.end_date) : '';
+      return ea === eb ? 0 : (ea < eb ? 1 : -1);
+    });
+}
+// Сумма в евро; для не-EUR мелко исходная сумма в валюте заказа (евро ÷ курс).
+function orderMoney(n, o) {
+  const fx = Number(o.fx_to_eur), cur = o.currency || 'EUR';
+  if (cur === 'EUR' || n == null || !(isFinite(fx) && fx > 0)) return eur(n);
+  return eur(n) + '<span class="eq">' + money(Number(n) / fx, cur) + '</span>';
+}
+function orderStatusChip(st) {
+  return '<span class="chip' + (st === 'draft' ? ' warn' : '') + '">' + esc(ORDER_STATUS[st] || st) + '</span>';
+}
+function ordersTable(rows) {
+  if (!rows.length) return '<div class="pad muted">Заказов не найдено</div>';
+  return '<div class="scroll"><table class="orders"><thead><tr>' +
+    '<th>Загрузка</th><th>Выгрузка</th><th>Клиент</th><th>Название</th><th>Тип</th><th>Статус</th><th class="r">Доход</th><th class="r">Чистая прибыль</th>' +
+    '</tr></thead><tbody>' +
+    rows.map((o) => {
+      const href = (o.kind === 'trip' ? '#/trip/' : '#/deal/') + o.id;
+      const name = clientName(o.client_id), p = numZ(o.net_eur);
+      return '<tr data-href="' + esc(href) + '">' +
+        '<td style="white-space:nowrap"><a href="' + esc(href) + '" style="font-weight:500">' + fdate(o.start_date) + '</a></td>' +
+        '<td style="white-space:nowrap">' + fdate(o.end_date) + '</td>' +
+        '<td>' + (name ? esc(name) : '<span class="muted">не указан</span>') + '</td>' +
+        '<td>' + esc(o.title || '—') + '</td>' +
+        '<td><span class="kind ' + (o.kind === 'trip' ? 'k-trip' : 'k-deal') + '">' + esc(ORDER_KIND[o.kind] || o.kind) + '</span></td>' +
+        '<td>' + orderStatusChip(o.status) + '</td>' +
+        '<td class="r">' + orderMoney(o.income_eur, o) + '</td>' +
+        '<td class="r ' + (p >= 0 ? 'pos' : 'neg') + '">' + orderMoney(o.net_eur, o) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+function bindOrderRows(root) {
+  root.querySelectorAll('tr[data-href]').forEach((tr) => {
+    tr.onclick = (e) => { if (!e.target.closest('a')) location.hash = tr.getAttribute('data-href'); };
+  });
+}
+
+// Переключатель периода (общий для дашборда и списка заказов).
+function periodHtml(p, pre) {
+  return '<div class="period"><div class="seg" role="group" aria-label="Период по дате загрузки" id="' + pre + 'Seg">' +
+    PERIODS.map(([k, v]) => '<button type="button" data-p="' + k + '" aria-pressed="' + (p.mode === k) + '">' + v + '</button>').join('') + '</div>' +
+    (p.mode === 'custom' ? '<div class="rng"><label for="' + pre + 'From">с</label><input type="date" id="' + pre + 'From" value="' + esc(p.from) + '">' +
+      '<label for="' + pre + 'To">по</label><input type="date" id="' + pre + 'To" value="' + esc(p.to) + '"></div>' : '') + '</div>';
+}
+function bindPeriod(p, pre, redraw) {
+  $(pre + 'Seg').querySelectorAll('[data-p]').forEach((b) => { b.onclick = () => { p.mode = b.getAttribute('data-p'); redraw(); }; });
+  if ($(pre + 'From')) {
+    $(pre + 'From').onchange = (e) => { p.from = e.target.value; redraw(); };
+    $(pre + 'To').onchange = (e) => { p.to = e.target.value; redraw(); };
+  }
+}
+const periodNote = (range) => !range ? '' : 'Период: ' + (range.from ? fdate(range.from) : '…') + ' — ' + (range.to ? fdate(range.to) : '…') + '. Заказы без даты загрузки не входят.';
+
+function renderOrders(fresh) {
+  setNav('orders');
+  const f = ordersFilter, range = periodRange(f);
+  const rows = filterOrders(orders, f, range);
+  const opt = (v, label, cur) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(label) + '</option>';
+  const msg = ordersOkMsg; ordersOkMsg = '';
+  $('view').innerHTML =
+    '<div class="top" id="ordersTop"><div><h1>Заказы</h1><div class="sub">Рейсы и сделки в одном списке. Суммы в евро. ' + periodNote(range) + '</div></div>' +
+    '<a class="btn" href="#/orders/new" style="text-decoration:none">+ Новый заказ</a></div>' +
+    (msg ? '<div class="okbox">' + esc(msg) + '</div>' : '') +
+    (ordersErr ? '<div class="err">Заказы не загрузились: ' + esc(ordersErr) + '</div>' : '') +
+    periodHtml(f, 'o') +
+    '<div class="filters">' +
+      '<div><label for="fClient">Клиент</label><select id="fClient">' + opt('', 'Все клиенты', f.client) + opt('__none', 'Без клиента', f.client) +
+        clients.map((c) => opt(c.id, c.name, f.client)).join('') + '</select></div>' +
+      '<div><label for="fKind">Тип</label><select id="fKind">' + opt('', 'Все типы', f.kind) + Object.entries(ORDER_KIND).map(([k, v]) => opt(k, v, f.kind)).join('') + '</select></div>' +
+      '<div><label for="fStatus">Статус</label><select id="fStatus">' + opt('', 'Все статусы', f.status) + Object.entries(ORDER_STATUS).map(([k, v]) => opt(k, v, f.status)).join('') + '</select></div>' +
+      '<div class="cnt muted">Найдено: ' + rows.length + '</div>' +
+    '</div>' +
+    '<div class="card" id="ordersCard">' + ordersTable(rows) + '</div>';
+  bindPeriod(f, 'o', () => renderOrders(true));
+  $('fClient').onchange = (e) => { f.client = e.target.value; renderOrders(true); };
+  $('fKind').onchange = (e) => { f.kind = e.target.value; renderOrders(true); };
+  $('fStatus').onchange = (e) => { f.status = e.target.value; renderOrders(true); };
+  bindOrderRows($('ordersCard'));
+  // Заказы могли измениться в карточках: подгружаем свежие и перерисовываем один раз.
+  if (!fresh && Date.now() - ordersLoadedAt > 3000) {
+    loadOrders().then(() => { if ($('ordersTop')) renderOrders(true); });
+  }
+}
+
+/* ----- Новый заказ: быстрый режим (доход/затраты) или расчёт по услугам ----- */
+let newOrder = null;
+
+async function renderNewOrder() {
+  setNav('orders');
+  $('view').innerHTML = '<div class="muted">Открываю форму...</div>';
+  const cat = await db.from('service_catalog').select('*').order('sort').order('name');
+  if (location.hash !== '#/orders/new') return;
+  newOrder = {client_name: '', title: '', start_date: null, end_date: null, currency: 'EUR', fx_to_eur: null,
+    income: null, cost: null, services: false, qty_marks: null, qty_stickers: null, lines: [],
+    catalog: cat.error ? [] : cat.data, catErr: cat.error ? cat.error.message : ''};
+  drawNewOrder();
+}
+
+// Сделка и строки, которые будут сохранены; по ним же считаем налог и прибыль в форме.
+function newOrderDeal(s) {
+  const deal = {qty_marks: s.services ? s.qty_marks : 0, qty_stickers: s.services ? s.qty_stickers : 0, tax_rate: NEW_ORDER_TAX,
+    final_price: s.services ? null : s.income, currency: s.currency, fx_to_eur: s.fx_to_eur};
+  const lines = s.services ? s.lines : [{name: 'Перевозка', basis: 'fixed', cost_rate: s.cost, sale_rate: s.income, unconfirmed: false}];
+  return {deal: deal, lines: lines};
+}
+
+function drawNewOrder() {
+  const s = newOrder, cur = s.currency, sign = CUR_SIGN[cur] || esc(cur);
+  const val = (v) => v == null ? '' : esc(v);
+  $('view').innerHTML =
+    '<div class="dealv">' +
+    '<div class="deal-head"><a href="#/orders" style="font-size:14px;text-decoration:none">← Все заказы</a><h1>Новый заказ</h1></div>' +
+    '<div id="noErr" class="err hidden"></div>' +
+    '<div class="deal-grid"><div class="deal-left">' +
+      '<section class="card" aria-label="Заказ"><div class="dfields">' +
+        '<div class="w3"><label for="noClient">Клиент</label><input id="noClient" list="noClientList" value="' + val(s.client_name) + '" placeholder="Выберите или впишите нового"><datalist id="noClientList">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
+        '<div class="w3"><label for="noTitle">Название / маршрут</label><input id="noTitle" value="' + val(s.title) + '" placeholder="Напр. Город А — Город Б"></div>' +
+        '<div class="dt"><label for="noStart">Загрузка</label><input id="noStart" type="date" value="' + val(s.start_date) + '"></div>' +
+        '<div class="dt"><label for="noEnd">Выгрузка</label><input id="noEnd" type="date" value="' + val(s.end_date) + '"></div>' +
+        '<div><label for="noCur">Валюта</label><select id="noCur">' + Object.keys(CUR_SIGN).map((c) => '<option value="' + c + '"' + (c === cur ? ' selected' : '') + '>' + c + '</option>').join('') + '</select></div>' +
+        (cur === 'EUR' ? '' : '<div><label for="noFx" title="Сколько евро в 1 ' + esc(cur) + '. Сумма × курс = сумма в евро">1 ' + sign + ' = … €</label><input id="noFx" inputmode="decimal" value="' + val(s.fx_to_eur) + '" placeholder="напр. 0,92"></div>') +
+        '<div><label for="noIncome">Доход, ' + sign + '</label><input id="noIncome" inputmode="decimal" value="' + val(s.income) + '"' + (s.services ? ' readonly title="Считается из расчёта по услугам"' : '') + '></div>' +
+        '<div><label for="noCost">Затраты, ' + sign + '</label><input id="noCost" inputmode="decimal" value="' + val(s.cost) + '"' + (s.services ? ' readonly title="Считается из расчёта по услугам"' : '') + '></div>' +
+      '</div>' +
+      '<label class="toggle"><input type="checkbox" id="noSvc"' + (s.services ? ' checked' : '') + '> Добавить расчёт по услугам</label>' +
+      '</section>' +
+      (!s.services ? '' :
+      '<section class="card" aria-label="Расчёт по услугам">' +
+        (s.catErr ? '<div class="err" style="margin:12px 14px 0">Каталог услуг не загрузился: ' + esc(s.catErr) + '</div>' : '') +
+        '<div class="dfields">' +
+          '<div><label for="noMarks" title="Бутылок под акцизные марки">Бут. под марки</label><input id="noMarks" inputmode="numeric" value="' + val(s.qty_marks) + '"></div>' +
+          '<div><label for="noStickers" title="Бутылок под стикеры">Бут. под стикеры</label><input id="noStickers" inputmode="numeric" value="' + val(s.qty_stickers) + '"></div>' +
+        '</div>' +
+        '<div class="lines-wrap"><table class="lines"><thead><tr>' +
+          '<th>Статья</th><th>Основа</th><th class="r" title="Ставка затрат">Затраты/ед., ' + sign + '</th><th class="r" title="Ставка продажи">Продажа/ед., ' + sign + '</th><th class="r">Затраты</th><th class="r">Продажа</th><th class="r">Разница</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
+        '</tr></thead><tbody id="noLines">' + s.lines.map(dealLineRow).join('') + '</tbody></table></div>' +
+        '<div class="addrow"><label for="noAdd" class="sr">Добавить строку</label><select id="noAdd"><option value="">Своя строка</option>' +
+          s.catalog.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select>' +
+          '<button class="btn small" id="noAddBtn" type="button">+ Добавить строку</button></div>' +
+      '</section>') +
+    '</div><aside class="deal-side">' +
+      '<div class="card"><h3 class="sm">Итог (налог ' + pct(NEW_ORDER_TAX) + ')</h3><div class="scroll"><table class="tot"><tbody id="noTot"></tbody></table></div></div>' +
+      '<div id="noWarn"></div>' +
+      '<div class="side-acts"><button class="btn" id="noSave" type="button">Сохранить заказ</button><a class="btn ghost" href="#/orders" style="text-decoration:none;text-align:center">Отмена</a></div>' +
+    '</aside></div></div>';
+
+  const num = (id, f) => { if ($(id)) $(id).oninput = (e) => { s[f] = numOrNull(e.target.value); updateNewOrderCalc(); }; };
+  $('noClient').oninput = (e) => { s.client_name = e.target.value; };
+  $('noTitle').oninput = (e) => { s.title = e.target.value; };
+  $('noStart').onchange = (e) => { s.start_date = e.target.value || null; };
+  $('noEnd').onchange = (e) => { s.end_date = e.target.value || null; };
+  $('noCur').onchange = (e) => { s.currency = e.target.value; drawNewOrder(); };
+  num('noFx', 'fx_to_eur');
+  if (!s.services) { num('noIncome', 'income'); num('noCost', 'cost'); }
+  $('noSvc').onchange = (e) => {
+    if (e.target.checked) {
+      // Первая строка расчёта — то, что уже вписано в доход и затраты.
+      if (!s.lines.length) s.lines.push({name: 'Перевозка', basis: 'fixed', cost_rate: s.cost, sale_rate: s.income, unconfirmed: false, key: 'k' + (++lineSeq)});
+      s.services = true;
+    } else {
+      const b = calcDeal(newOrderDeal(s).deal, s.lines).billed;
+      s.income = b.price; s.cost = b.cost; s.services = false;
+    }
+    drawNewOrder();
+  };
+  if (s.services) {
+    num('noMarks', 'qty_marks'); num('noStickers', 'qty_stickers');
+    const onLine = (e) => {
+      const tr = e.target.closest('tr[data-key]'); const f = e.target.getAttribute('data-f');
+      if (!tr || !f) return;
+      const l = s.lines.find((x) => x.key === tr.getAttribute('data-key'));
+      if (!l) return;
+      if (f === 'unconfirmed') l.unconfirmed = e.target.checked;
+      else if (f === 'cost_rate' || f === 'sale_rate') l[f] = numOrNull(e.target.value);
+      else l[f] = e.target.value;
+      updateNewOrderCalc();
+    };
+    $('noLines').addEventListener('input', onLine);
+    $('noLines').addEventListener('change', onLine);
+    $('noLines').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-del]'); if (!b) return;
+      const tr = b.closest('tr[data-key]');
+      const i = s.lines.findIndex((x) => x.key === tr.getAttribute('data-key'));
+      if (i < 0) return;
+      s.lines.splice(i, 1); tr.remove(); updateNewOrderCalc();
+    });
+    $('noAddBtn').onclick = () => {
+      const c = s.catalog.find((x) => x.id === $('noAdd').value);
+      const l = c ? {name: c.name, basis: c.basis, cost_rate: c.cost_rate, sale_rate: c.sale_rate}
+                  : {name: '', basis: 'fixed', cost_rate: null, sale_rate: null};
+      l.unconfirmed = false; l.key = 'k' + (++lineSeq);
+      s.lines.push(l);
+      $('noLines').insertAdjacentHTML('beforeend', dealLineRow(l));
+      updateNewOrderCalc();
+      if (!c) $('noLines').lastElementChild.querySelector('[data-f="name"]').focus();
+    };
+  }
+  $('noSave').onclick = saveNewOrder;
+  updateNewOrderCalc();
+}
+
+function updateNewOrderCalc() {
+  const s = newOrder, x = newOrderDeal(s), res = calcDeal(x.deal, x.lines), b = res.billed, cur = s.currency;
+  const m = (n) => money(n, cur), mEq = (n) => moneyEq(n, x.deal);
+  if (s.services) {
+    s.lines.forEach((l, i) => {
+      const tr = document.querySelector('#noLines tr[data-key="' + l.key + '"]');
+      if (!tr) return;
+      const r = res.rows[i];
+      tr.querySelector('[data-c="cost"]').textContent = l.cost_rate == null ? '—' : m(r.cost);
+      tr.querySelector('[data-c="sale"]').textContent = l.sale_rate == null ? '—' : m(r.sale);
+      const dc = tr.querySelector('[data-c="diff"]');
+      dc.textContent = (l.cost_rate == null && l.sale_rate == null) ? '—' : m(r.diff);
+      dc.className = 'r ' + (r.diff >= 0 ? 'pos' : 'neg');
+    });
+    $('noIncome').value = Math.round(b.price * 100) / 100;
+    $('noCost').value = Math.round(b.cost * 100) / 100;
+  }
+  const row = (label, n, bold) => '<tr><td' + (bold ? ' style="font-weight:600"' : '') + '>' + label + '</td><td class="r' + (bold ? ' ' + (n >= 0 ? 'pos' : 'neg') : '') + '">' + mEq(n) + '</td></tr>';
+  $('noTot').innerHTML = row('Доход', b.price) + row('Затраты', b.cost) + row('Разница', b.diff) +
+    row('Налог (' + pct(NEW_ORDER_TAX) + ' с разницы)', b.tax) + row('Чистая прибыль', b.profit, true) +
+    '<tr><td>Маржа</td><td class="r">' + pct(b.margin) + '</td></tr>';
+  $('noWarn').innerHTML = (res.unconfirmed ? '<div class="warnbox">Есть строки «не подтверждено»: итог может быть неполным.</div>' : '') +
+    (cur !== 'EUR' && Number(s.fx_to_eur) === 1 ? '<div class="warnbox">Курс к евро равен 1. Проверьте, что он указан верно.</div>' : '');
+}
+
+async function saveNewOrder() {
+  const s = newOrder, box = $('noErr');
+  box.classList.add('hidden');
+  const fail = (m) => { box.textContent = m; box.classList.remove('hidden'); box.scrollIntoView({block: 'center'}); };
+  const bad = (v) => v != null && Number.isNaN(v);
+  const title = String(s.title || '').trim();
+  if (!title) return fail('Укажите название или маршрут заказа.');
+  if (s.currency !== 'EUR' && !(s.fx_to_eur != null && isFinite(s.fx_to_eur) && s.fx_to_eur > 0)) return fail('Укажите курс к евро: число больше нуля, например 0,92.');
+  if (s.start_date && s.end_date && s.end_date < s.start_date) return fail('Дата выгрузки раньше даты загрузки. Проверьте даты.');
+  if (!s.services) {
+    if (s.income == null || s.cost == null) return fail('Укажите доход и затраты (можно 0).');
+    if (bad(s.income) || bad(s.cost)) return fail('Доход и затраты: только цифры.');
+  } else {
+    if (!s.lines.length) return fail('Добавьте хотя бы одну строку расчёта или выключите расчёт по услугам.');
+    for (const v of [s.qty_marks, s.qty_stickers]) {
+      if (v != null && !(Number.isInteger(v) && v >= 0)) return fail('Количество бутылок: только целые числа без минуса.');
+    }
+    for (const l of s.lines) {
+      if (!String(l.name || '').trim()) return fail('У каждой строки должно быть название.');
+      if (bad(l.cost_rate) || bad(l.sale_rate)) return fail('Проверьте ставки в строке «' + l.name + '»: только цифры.');
+    }
+  }
+  const btn = $('noSave'); btn.disabled = true; btn.textContent = 'Сохраняю...';
+  let newId = null;
+  try {
+    const cid = await findOrCreate('clients', s.client_name);
+    const x = newOrderDeal(s);
+    const d = await db.from('deals').insert({
+      title: title, client_id: cid, status: 'active', tax_rate: NEW_ORDER_TAX, company: NEW_ORDER_COMPANY,
+      start_date: s.start_date || null, end_date: s.end_date || null,
+      currency: s.currency, fx_to_eur: s.currency === 'EUR' ? 1 : s.fx_to_eur,
+      final_price: x.deal.final_price, qty_marks: x.deal.qty_marks || 0, qty_stickers: x.deal.qty_stickers || 0
+    }).select('id').single();
+    if (d.error) throw d.error;
+    newId = d.data.id;
+    const ins = await db.from('deal_lines').insert(x.lines.map((l, i) => ({deal_id: newId, name: String(l.name).trim(), basis: l.basis,
+      cost_rate: l.cost_rate, sale_rate: l.sale_rate, unconfirmed: !!l.unconfirmed, sort: i})));
+    if (ins.error) {
+      // Строки не сохранились: убираем только что созданную пустую сделку, чтобы не осталось заказа без расчёта.
+      await db.from('deals').delete().eq('id', newId);
+      throw ins.error;
+    }
+    const cl = await db.from('clients').select('id, name').order('name');
+    if (!cl.error) clients = cl.data;
+    await loadOrders();
+    ordersOkMsg = 'Заказ «' + title + '» сохранён.';
+    newOrder = null;
+    location.hash = '#/orders';
+  } catch (err) {
+    fail('Не удалось сохранить: ' + err.message);
+    btn.disabled = false; btn.textContent = 'Сохранить заказ';
+  }
+}
+
 function route() {
   const h = location.hash || '#/';
   if (h.startsWith('#/trip/')) return renderTrip(h.slice(7));
-  if (h === '#/trips') return renderTrips();
+  if (h === '#/trips') { ordersFilter.kind = 'trip'; location.replace('#/orders'); return; }
   if (h.startsWith('#/deal/')) return renderDeal(h.slice(7));
-  if (h === '#/deals') return renderDeals();
+  if (h === '#/deals') { ordersFilter.kind = 'deal'; location.replace('#/orders'); return; }
+  if (h === '#/orders/new') return renderNewOrder();
+  if (h === '#/orders') return renderOrders();
   return renderDashboard();
 }
 
@@ -873,7 +1208,7 @@ $('loginForm').onsubmit = async (e) => {
   enterApp();
 };
 
-$('logoutBtn').onclick = async () => { await db.auth.signOut(); trips = []; clients = []; carriers = []; deals = []; enterLogin(); };
+$('logoutBtn').onclick = async () => { await db.auth.signOut(); trips = []; clients = []; carriers = []; deals = []; orders = []; enterLogin(); };
 window.addEventListener('hashchange', () => { if (!$('app').classList.contains('hidden') && trips.length + clients.length >= 0) route(); });
 
 (async () => {
