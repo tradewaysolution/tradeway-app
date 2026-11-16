@@ -148,6 +148,11 @@ tr.overdue td{background:#FDF2F2}
 .nocar-hint{display:none;color:var(--warn);font-weight:500}
 .lines tr.nocar td{background:var(--warnbg)}
 .lines tr.nocar .nocar-hint{display:inline}
+.lines select.csel{width:132px}
+.lines{min-width:840px}
+.paytbl{min-width:640px}
+.paytbl input{padding:5px 7px;font-size:13px;border-radius:6px;border-color:var(--line)}
+.paytbl input[data-g="invoice_no"]{width:110px}.paytbl input[type=date]{width:auto}.paytbl input.num{width:96px;text-align:right}
 .linkbtn{background:none;border:0;padding:0;font:inherit;font-size:13px;color:var(--navy);text-decoration:underline;cursor:pointer}
 tr.total td{font-weight:600;border-top:2px solid var(--line)}
 .period{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -170,8 +175,8 @@ tr.total td{font-weight:600;border-top:2px solid var(--line)}
 .lines input,.lines select{padding:4px 6px;font-size:13px;border-radius:6px;border-color:var(--line)}
 .lines input:focus,.lines select:focus{border-color:var(--field)}
 .lines input[data-f="name"]{min-width:110px}
-.lines select{width:158px}
-.lines input.num{width:64px;text-align:right}
+.lines select{width:128px}
+.lines input.num{width:58px;text-align:right}
 .lines input[type=checkbox]{width:16px;height:16px;margin:0;vertical-align:middle}
 .lines .x,.tbl-sm .x{border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}
 .lines .x:hover,.tbl-sm .x:hover{background:var(--bg);color:#9B1C1C}
@@ -748,14 +753,14 @@ async function renderDeal(id, okMsg) {
 
 function dealLineRow(l) {
   const rate = (f, label) => '<td><input class="num" data-f="' + f + '" inputmode="decimal" value="' + (l[f] == null ? '' : esc(l[f])) + '" placeholder="—" aria-label="' + label + '"></td>';
-  return '<tr class="has-pay" data-key="' + esc(l.key) + '">' +
+  return '<tr data-key="' + esc(l.key) + '">' +
     '<td><input data-f="name" value="' + esc(l.name) + '" placeholder="Название статьи" aria-label="Название статьи"></td>' +
     '<td><select data-f="basis" aria-label="Основа">' + Object.entries(BASIS).map(([k, v]) => '<option value="' + k + '"' + (l.basis === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></td>' +
     rate('cost_rate', 'Ставка себестоимости') + rate('sale_rate', 'Ставка продажи') +
     '<td class="r" data-c="cost"></td><td class="r" data-c="sale"></td><td class="r" data-c="diff"></td>' +
+    '<td><select class="csel" data-f="carrier_id" aria-label="Контрагент" title="Строки с одним контрагентом объединяются в один счёт к оплате">' + carrierOptions(l.carrier_id) + '</select></td>' +
     '<td style="text-align:center"><input type="checkbox" data-f="unconfirmed"' + (l.unconfirmed ? ' checked' : '') + ' aria-label="Не подтверждено" title="Не подтверждено"></td>' +
-    '<td><button class="x" type="button" data-del aria-label="Удалить строку" title="Удалить строку">×</button></td></tr>' +
-    linePayRow(l);
+    '<td><button class="x" type="button" data-del aria-label="Удалить строку" title="Удалить строку">×</button></td></tr>';
 }
 
 function drawDeal(okMsg) {
@@ -792,12 +797,13 @@ function drawDeal(okMsg) {
           compOpts.map((c) => '<option value="' + esc(c) + '"' + (d.company === c ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>' +
       '</div></section>' +
       '<section class="card" aria-label="Статьи расчёта"><div class="lines-wrap"><table class="lines"><thead><tr>' +
-        '<th>Статья</th><th>Основа</th><th class="r" title="Ставка себестоимости">Себест./ед., ' + sign + '</th><th class="r" title="Ставка продажи">Продажа/ед., ' + sign + '</th><th class="r">Себестоимость</th><th class="r">Продажа</th><th class="r">Разница</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
+        '<th>Статья</th><th>Основа</th><th class="r" title="Ставка себестоимости">Себест./ед., ' + sign + '</th><th class="r" title="Ставка продажи">Продажа/ед., ' + sign + '</th><th class="r">Себестоимость</th><th class="r">Продажа</th><th class="r">Разница</th><th>Контрагент</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
         '</tr></thead><tbody id="dLines">' + s.lines.map(dealLineRow).join('') + '</tbody></table></div>' +
         '<div class="addrow"><label for="addLine" class="sr">Добавить строку</label><select id="addLine"><option value="">Своя строка</option>' +
           s.catalog.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select>' +
           '<button class="btn small" id="addLineBtn" type="button">+ Добавить строку</button></div>' +
       '</section>' +
+      '<section class="card" aria-label="Счета к оплате"><h3 class="sm">Счета к оплате</h3><div id="dPay"></div></section>' +
     '</div><aside class="deal-side">' +
       '<div class="card"><h3 class="sm">Итог</h3><div class="scroll"><table class="tot"><thead><tr><th></th><th class="r">По расчёту</th><th class="r">Выставлено</th></tr></thead><tbody id="dTot"></tbody></table></div></div>' +
       '<div class="card"><h3 class="sm">Оплата клиента</h3><div class="cpay">' +
@@ -822,6 +828,9 @@ function drawDeal(okMsg) {
   $('dDue').onchange = (e) => { d.client_due_date = e.target.value || null; };
 
   const onLine = (e) => { if (lineInput(e, s.lines, () => drawDeal())) updateDealCalc(); };
+  const onPay = (e) => { if (payGroupEdit(e, s.lines, () => calcDeal(s.deal, s.lines).rows)) updateDealCalc(); };
+  $('dPay').addEventListener('input', onPay);
+  $('dPay').addEventListener('change', onPay);
   $('dLines').addEventListener('input', onLine);
   $('dLines').addEventListener('change', onLine);
   $('dLines').addEventListener('click', (e) => {
@@ -834,10 +843,10 @@ function drawDeal(okMsg) {
   });
   $('addLineBtn').onclick = () => {
     const c = s.catalog.find((x) => x.id === $('addLine').value);
-    const l = c ? {name: c.name, basis: c.basis, cost_rate: c.cost_rate, sale_rate: c.sale_rate}
+    const l = c ? {name: c.name, basis: c.basis, cost_rate: c.cost_rate, sale_rate: c.sale_rate, carrier_id: c.carrier_id || null}
                 : {name: '', basis: 'fixed', cost_rate: null, sale_rate: null};
     l.unconfirmed = false; l.key = 'k' + (++lineSeq); l.dirty = true;
-    s.lines.push(l);
+    s.lines.push(l); joinPayGroup(s.lines, l);
     $('dLines').insertAdjacentHTML('beforeend', dealLineRow(l));
     updateDealCalc();
     if (!c) $('dLines').querySelector('tr[data-key="' + l.key + '"] [data-f="name"]').focus();
@@ -874,6 +883,7 @@ function updateDealCalc() {
   $('dFinal').placeholder = m(a.price);
   $('dInv').placeholder = String(Math.round(b.price * 100) / 100).replace('.', ',');
   paintLinePay('dLines', s.lines, res.rows);
+  updatePayGroups('dPay', s.lines, res.rows, cur);
 }
 
 async function saveDeal(activate) {
@@ -1127,12 +1137,13 @@ function drawNewOrder() {
           '<div><label for="noStickers" title="Бутылок под стикеры">Бут. под стикеры</label><input id="noStickers" inputmode="numeric" value="' + val(s.qty_stickers) + '"></div>' +
         '</div>' +
         '<div class="lines-wrap"><table class="lines"><thead><tr>' +
-          '<th>Статья</th><th>Основа</th><th class="r" title="Ставка затрат">Затраты/ед., ' + sign + '</th><th class="r" title="Ставка продажи">Продажа/ед., ' + sign + '</th><th class="r">Затраты</th><th class="r">Продажа</th><th class="r">Разница</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
+          '<th>Статья</th><th>Основа</th><th class="r" title="Ставка затрат">Затраты/ед., ' + sign + '</th><th class="r" title="Ставка продажи">Продажа/ед., ' + sign + '</th><th class="r">Затраты</th><th class="r">Продажа</th><th class="r">Разница</th><th>Контрагент</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
         '</tr></thead><tbody id="noLines">' + s.lines.map(dealLineRow).join('') + '</tbody></table></div>' +
         '<div class="addrow"><label for="noAdd" class="sr">Добавить строку</label><select id="noAdd"><option value="">Своя строка</option>' +
           s.catalog.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select>' +
           '<button class="btn small" id="noAddBtn" type="button">+ Добавить строку</button></div>' +
-      '</section>') +
+      '</section>' +
+      '<section class="card" aria-label="Счета к оплате"><h3 class="sm">Счета к оплате</h3><div id="noPay"></div></section>') +
     '</div><aside class="deal-side">' +
       '<div class="card"><h3 class="sm">Итог (налог ' + pct(NEW_ORDER_TAX) + ')</h3><div class="scroll"><table class="tot"><tbody id="noTot"></tbody></table></div></div>' +
       '<div class="card"><h3 class="sm">Оплата клиента</h3><div class="cpay">' +
@@ -1171,6 +1182,9 @@ function drawNewOrder() {
   if (s.services) {
     num('noMarks', 'qty_marks'); num('noStickers', 'qty_stickers');
     const onLine = (e) => { if (lineInput(e, s.lines, () => drawNewOrder())) updateNewOrderCalc(); };
+    const onPay = (e) => { if (payGroupEdit(e, s.lines, () => calcDeal(newOrderDeal(s).deal, s.lines).rows)) updateNewOrderCalc(); };
+    $('noPay').addEventListener('input', onPay);
+    $('noPay').addEventListener('change', onPay);
     $('noLines').addEventListener('input', onLine);
     $('noLines').addEventListener('change', onLine);
     $('noLines').addEventListener('click', (e) => {
@@ -1182,10 +1196,10 @@ function drawNewOrder() {
     });
     $('noAddBtn').onclick = () => {
       const c = s.catalog.find((x) => x.id === $('noAdd').value);
-      const l = c ? {name: c.name, basis: c.basis, cost_rate: c.cost_rate, sale_rate: c.sale_rate}
+      const l = c ? {name: c.name, basis: c.basis, cost_rate: c.cost_rate, sale_rate: c.sale_rate, carrier_id: c.carrier_id || null}
                   : {name: '', basis: 'fixed', cost_rate: null, sale_rate: null};
       l.unconfirmed = false; l.key = 'k' + (++lineSeq);
-      s.lines.push(l);
+      s.lines.push(l); joinPayGroup(s.lines, l);
       $('noLines').insertAdjacentHTML('beforeend', dealLineRow(l));
       updateNewOrderCalc();
       if (!c) $('noLines').querySelector('tr[data-key="' + l.key + '"] [data-f="name"]').focus();
@@ -1212,6 +1226,7 @@ function updateNewOrderCalc() {
     $('noIncome').value = Math.round(b.price * 100) / 100;
     $('noCost').value = Math.round(b.cost * 100) / 100;
     paintLinePay('noLines', s.lines, res.rows);
+    updatePayGroups('noPay', s.lines, res.rows, cur);
   } else paintLinePay('noQuick', [s.quick], res.rows);
   $('noInv').placeholder = String(Math.round(b.price * 100) / 100).replace('.', ',');
   const row = (label, n, bold) => '<tr><td' + (bold ? ' style="font-weight:600"' : '') + '>' + label + '</td><td class="r' + (bold ? ' ' + (n >= 0 ? 'pos' : 'neg') : '') + '">' + mEq(n) + '</td></tr>';
@@ -1289,16 +1304,21 @@ const carrierName = (id) => { const c = carriers.find((x) => x.id === id); retur
 const numOr = (v, dflt) => (v == null || v === '' || !isFinite(Number(v))) ? dflt : Number(v);
 
 // Чистая функция долгов.
-// Мы должны: строка заказа с контрагентом; к оплате = payable_amount, а если пусто — расход строки по расчёту;
-//   осталось = к оплате − платежи direction='out' по этой строке.
+// Мы должны: по каждому заказу строки с одним контрагентом — один счёт; к оплате = сумма payable_amount строк
+//   (если пусто — расход строки по расчёту); осталось = к оплате − платежи direction='out' этому контрагенту по этому заказу.
 // Нам должны: заказ; выставлено = client_invoice_amount, а если пусто — итоговая цена заказа;
 //   осталось = выставлено − платежи direction='in' по этому заказу.
 // Суммы строк — в валюте заказа, итоги — в евро по курсу заказа. Просрочка: срок раньше сегодняшнего дня.
 function financeDebts(dealRows, lineRows, payRows, today, nameOfCarrier, nameOfClient) {
-  const paidLine = new Map(), paidDeal = new Map();
+  const paidOut = new Map(), paidDeal = new Map();
+  const lineById = new Map((lineRows || []).map((l) => [l.id, l]));
   (payRows || []).forEach((p) => {
     const a = numOr(p.amount, 0);
-    if (p.direction === 'out' && p.deal_line_id) paidLine.set(p.deal_line_id, (paidLine.get(p.deal_line_id) || 0) + a);
+    if (p.direction === 'out') {
+      const ln = p.deal_line_id ? lineById.get(p.deal_line_id) : null;
+      const dealId = p.deal_id || (ln && ln.deal_id), car = p.carrier_id || (ln && ln.carrier_id);
+      if (dealId && car) paidOut.set(dealId + '|' + car, (paidOut.get(dealId + '|' + car) || 0) + a);
+    }
     if (p.direction === 'in' && p.deal_id) paidDeal.set(p.deal_id, (paidDeal.get(p.deal_id) || 0) + a);
   });
   const linesBy = new Map();
@@ -1317,14 +1337,23 @@ function financeDebts(dealRows, lineRows, payRows, today, nameOfCarrier, nameOfC
   (dealRows || []).filter((d) => FIN_STATUSES.includes(normStatus(d.status))).forEach((d) => {
     const ls = (linesBy.get(d.id) || []).slice().sort((a, b) => (a.sort || 0) - (b.sort || 0));
     const res = calcDeal(d, ls), cur = dealCur(d), fx = dealFx(d);
+    const bills = new Map();
     ls.forEach((l, i) => {
       const payable = numOr(l.payable_amount, res.rows[i].cost);
       if (!l.carrier_id) { if (payable > 0.005) unassigned++; return; }
-      const paid = paidLine.get(l.id) || 0, left = payable - paid;
+      if (!bills.has(l.carrier_id)) bills.set(l.carrier_id, {lines: [], payable: 0, invoice: '', due: null});
+      const b = bills.get(l.carrier_id);
+      b.lines.push(l); b.payable += payable;
+      if (!b.invoice && l.invoice_no) b.invoice = l.invoice_no;
+      if (l.due_date && (!b.due || String(l.due_date) < String(b.due))) b.due = l.due_date;
+    });
+    bills.forEach((b, car) => {
+      const key = d.id + '|' + car, paid = paidOut.get(key) || 0, left = b.payable - paid;
       if (left <= 0.005) return;
-      push(group(out, l.carrier_id, (nameOfCarrier && nameOfCarrier(l.carrier_id)) || 'Без названия'),
-        {deal: d, line: l, payable: payable, paid: paid, left: left, leftEur: left * fx, cur: cur, fx: fx,
-         due: l.due_date || null, overdue: !!(l.due_date && String(l.due_date).slice(0, 10) < today)});
+      push(group(out, car, (nameOfCarrier && nameOfCarrier(car)) || 'Без названия'),
+        {key: key, deal: d, carrier_id: car, lines: b.lines, names: b.lines.map((l) => l.name).join(', '), invoice: b.invoice,
+         payable: b.payable, paid: paid, left: left, leftEur: left * fx, cur: cur, fx: fx,
+         due: b.due || null, overdue: !!(b.due && String(b.due).slice(0, 10) < today)});
     });
     const invoiced = numOr(d.client_invoice_amount, res.billed.price), paidIn = paidDeal.get(d.id) || 0, leftIn = invoiced - paidIn;
     if (leftIn > 0.005) {
@@ -1447,12 +1476,21 @@ function lineInput(e, lines, redraw) {
       return null;
     }
     l.carrier_id = e.target.value || null;
+    joinPayGroup(lines, l);
   } else if (f === 'unconfirmed') l.unconfirmed = e.target.checked;
   else if (f === 'cost_rate' || f === 'sale_rate' || f === 'payable_amount') l[f] = numOrNull(e.target.value);
   else if (f === 'due_date') l[f] = e.target.value || null;
   else l[f] = e.target.value;
   l.dirty = true;
   return l;
+}
+// Строка, попавшая к контрагенту, берёт № счёта и срок оплаты его счёта в этом заказе.
+function joinPayGroup(lines, l) {
+  if (!l.carrier_id) return;
+  const mate = lines.find((x) => x !== l && x.carrier_id === l.carrier_id);
+  if (!mate) return;
+  if (!l.invoice_no && mate.invoice_no) l.invoice_no = mate.invoice_no;
+  if (!l.due_date && mate.due_date) l.due_date = mate.due_date;
 }
 function removeLineRows(tbody, key) { tbody.querySelectorAll('tr[data-key="' + key + '"]').forEach((r) => r.remove()); }
 // Подсветка строк расхода без контрагента и подсказка «К оплате» = расход строки.
@@ -1465,6 +1503,70 @@ function paintLinePay(tbodyId, lines, rows) {
     const p = document.querySelector('#' + tbodyId + ' tr.payrow[data-key="' + l.key + '"] [data-f="payable_amount"]');
     if (p) p.placeholder = String(Math.round(r.cost * 100) / 100).replace('.', ',');
   });
+}
+// Счета к оплате: строки заказа с одним контрагентом — один счёт (№, срок, «К оплате»).
+// «К оплате» хранится в строках: введённая сумма делится между строками группы пропорционально их расходу.
+function payGroups(lines, rows) {
+  const groups = new Map(), loose = [];
+  lines.forEach((l, i) => {
+    const r = rows[i] || {cost: 0};
+    if (!l.carrier_id) { if (r.cost > 0.005 || (l.payable_amount != null && l.payable_amount > 0)) loose.push(l); return; }
+    if (!groups.has(l.carrier_id)) groups.set(l.carrier_id, {carrier_id: l.carrier_id, lines: [], cost: 0, payable: 0, manual: false, invoice: '', due: null});
+    const g = groups.get(l.carrier_id);
+    g.lines.push(l); g.cost += r.cost;
+    g.payable += (l.payable_amount != null && isFinite(l.payable_amount)) ? l.payable_amount : r.cost;
+    if (l.payable_amount != null) g.manual = true;
+    if (!g.invoice && l.invoice_no) g.invoice = l.invoice_no;
+    if (!g.due && l.due_date) g.due = l.due_date;
+  });
+  return {groups: Array.from(groups.values()), loose: loose};
+}
+const plainNum = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
+function updatePayGroups(boxId, lines, rows, cur) {
+  const box = $(boxId); if (!box) return;
+  const pg = payGroups(lines, rows);
+  const sig = JSON.stringify([pg.groups.map((g) => [g.carrier_id, g.lines.map((l) => l.key + ':' + l.name)]), pg.loose.map((l) => l.key + ':' + l.name)]);
+  if (box.dataset.sig !== sig) {
+    box.dataset.sig = sig;
+    box.innerHTML = (!pg.groups.length ? '<div class="pad muted" style="padding:12px 14px">Выберите контрагента у строк расхода — строки с одним контрагентом объединятся в один счёт.</div>' :
+      '<div class="scroll"><table class="tbl-sm paytbl"><thead><tr><th>Контрагент</th><th>Статьи</th><th class="r">Расход</th><th>№ счёта</th><th>Срок оплаты</th><th class="r">К оплате</th></tr></thead><tbody>' +
+      pg.groups.map((g) => '<tr data-carrier="' + esc(g.carrier_id) + '"><td style="font-weight:500">' + esc(carrierName(g.carrier_id) || '(контрагент не найден)') + '</td>' +
+        '<td class="sub">' + g.lines.map((l) => esc(l.name || 'без названия')).join(', ') + '</td>' +
+        '<td class="r" data-gc></td>' +
+        '<td><input data-g="invoice_no" value="' + esc(g.invoice) + '" placeholder="№ счёта" aria-label="Номер счёта"></td>' +
+        '<td><input type="date" data-g="due_date" value="' + esc(g.due || '') + '" aria-label="Срок оплаты"></td>' +
+        '<td class="r"><input class="num" data-g="payable" inputmode="decimal" value="' + (g.manual ? plainNum(g.payable) : '') + '" aria-label="К оплате" title="По умолчанию — расход. Можно изменить, например на сумму с НДС"></td></tr>').join('') +
+      '</tbody></table></div>') +
+      (pg.loose.length ? '<div class="warnbox" style="margin:0 14px 12px">Без контрагента, не попадут в долги: ' + pg.loose.map((l) => esc(l.name || 'без названия')).join(', ') + '</div>' : '');
+  }
+  pg.groups.forEach((g) => {
+    const tr = box.querySelector('tr[data-carrier="' + g.carrier_id + '"]'); if (!tr) return;
+    tr.querySelector('[data-gc]').textContent = money(g.cost, cur);
+    tr.querySelector('[data-g="payable"]').placeholder = plainNum(g.cost);
+  });
+}
+function payGroupEdit(e, lines, rowsFn) {
+  const tr = e.target.closest('tr[data-carrier]'), f = e.target.getAttribute('data-g');
+  if (!tr || !f) return false;
+  const carrier = tr.getAttribute('data-carrier');
+  const idx = []; lines.forEach((l, i) => { if (l.carrier_id === carrier) idx.push(i); });
+  if (!idx.length) return false;
+  if (f === 'invoice_no') idx.forEach((i) => { lines[i].invoice_no = e.target.value; });
+  else if (f === 'due_date') { if (e.type !== 'change') return false; idx.forEach((i) => { lines[i].due_date = e.target.value || null; }); }
+  else if (f === 'payable') {
+    const P = numOrNull(e.target.value);
+    if (P == null || Number.isNaN(P)) idx.forEach((i, k) => { lines[i].payable_amount = (P == null || k) ? null : P; });
+    else {
+      const rows = rowsFn(), costs = idx.map((i) => (rows[i] || {cost: 0}).cost), C = costs.reduce((a, b) => a + b, 0);
+      let rest = P;
+      idx.forEach((i, k) => {
+        const v = k === idx.length - 1 ? Math.round(rest * 100) / 100 : (C > 0 ? Math.round(costs[k] * P / C * 100) / 100 : (k ? 0 : P));
+        lines[i].payable_amount = v; rest -= v;
+      });
+    }
+  }
+  idx.forEach((i) => { lines[i].dirty = true; });
+  return true;
 }
 const lineBad = (l) => [l.cost_rate, l.sale_rate, l.payable_amount].some((x) => x != null && Number.isNaN(x));
 
@@ -1507,12 +1609,12 @@ function weOweHtml(d) {
     (d.unassigned ? '<div class="warnbox">Строк расхода без контрагента: ' + d.unassigned + '. Они не попали в долги — укажите контрагента в карточке заказа.</div>' : '') +
     (!d.groups.length ? '<div class="card"><div class="pad muted">Неоплаченных счетов нет</div></div>' :
     d.groups.map((g) => '<div class="card">' + groupHead(g) +
-      '<div class="scroll"><table class="tbl-sm fin-t"><thead><tr><th>Заказ</th><th>Строка</th><th>Счёт</th><th>Срок</th><th class="r">К оплате</th><th class="r">Оплачено</th><th class="r">Осталось</th><th></th></tr></thead><tbody>' +
+      '<div class="scroll"><table class="tbl-sm fin-t"><thead><tr><th>Заказ</th><th>Статьи</th><th>Счёт</th><th>Срок</th><th class="r">К оплате</th><th class="r">Оплачено</th><th class="r">Осталось</th><th></th></tr></thead><tbody>' +
       g.items.map((it) => '<tr' + (it.overdue ? ' class="overdue"' : '') + '><td><a href="#/deal/' + esc(it.deal.id) + '">' + esc(it.deal.title || 'Без названия') + '</a></td>' +
-        '<td>' + esc(it.line.name) + '</td><td>' + esc(it.line.invoice_no || '—') + '</td>' + dueCell(it) +
+        '<td class="sub">' + esc(it.names) + '</td><td>' + esc(it.invoice || '—') + '</td>' + dueCell(it) +
         '<td class="r">' + money(it.payable, it.cur) + '</td><td class="r">' + (it.paid ? money(it.paid, it.cur) : '—') + '</td>' +
         '<td class="r" style="font-weight:600">' + moneyEq(it.left, it.deal) + '</td>' +
-        '<td class="r"><button class="btn small" type="button" data-pay-line="' + esc(it.line.id) + '">Оплатить</button></td></tr>').join('') +
+        '<td class="r"><button class="btn small" type="button" data-pay-bill="' + esc(it.key) + '">Оплатить</button></td></tr>').join('') +
       '</tbody></table></div></div>').join(''));
 }
 function owedHtml(d) {
@@ -1529,10 +1631,10 @@ function owedHtml(d) {
 }
 function bindPayButtons(debts, tab) {
   const items = (tab === 'in' ? debts.owedToUs : debts.weOwe).groups.reduce((a, g) => a.concat(g.items), []);
-  document.querySelectorAll('[data-pay-line]').forEach((b) => {
-    const it = items.find((x) => x.line && x.line.id === b.getAttribute('data-pay-line'));
-    b.onclick = () => openPayModal('Оплата контрагенту', carrierName(it.line.carrier_id) + ' · ' + (it.deal.title || '') + ' · ' + it.line.name, it,
-      (v) => ({direction: 'out', deal_id: it.deal.id, deal_line_id: it.line.id, carrier_id: it.line.carrier_id, client_id: null}), tab);
+  document.querySelectorAll('[data-pay-bill]').forEach((b) => {
+    const it = items.find((x) => x.key === b.getAttribute('data-pay-bill'));
+    b.onclick = () => openPayModal('Оплата контрагенту', carrierName(it.carrier_id) + ' · ' + (it.deal.title || '') + ' · ' + it.names, it,
+      () => ({direction: 'out', deal_id: it.deal.id, deal_line_id: it.lines.length === 1 ? it.lines[0].id : null, carrier_id: it.carrier_id, client_id: null}), tab);
   });
   document.querySelectorAll('[data-pay-deal]').forEach((b) => {
     const it = items.find((x) => x.deal.id === b.getAttribute('data-pay-deal'));
