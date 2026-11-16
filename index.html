@@ -113,6 +113,9 @@ table.orders tbody tr[data-href]:hover td{background:#F7F9FC}
 .k-deal{background:#E6EDF6;color:var(--navy);font-weight:500}
 .toggle{display:flex;align-items:center;gap:8px;padding:0 14px 12px;font-size:13px;cursor:pointer;width:max-content}
 .toggle input{width:auto}
+.stsel{display:inline-flex;align-items:center;gap:8px;font-size:13px}
+.stsel label{margin:0;font-weight:400;color:var(--muted)}
+.stsel select{width:auto;padding:7px 10px;font-size:13px}
 .linkbtn{background:none;border:0;padding:0;font:inherit;font-size:13px;color:var(--navy);text-decoration:underline;cursor:pointer}
 tr.total td{font-weight:600;border-top:2px solid var(--line)}
 .period{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -422,7 +425,8 @@ async function renderTrip(id) {
   const legacy = t.legacy ? Object.entries(t.legacy).map(([k, v]) => esc(k) + ': ' + esc(v)).join('\n') : '';
   $('view').innerHTML =
     '<div><a href="#/orders" style="font-size:14px;text-decoration:none">← Все заказы</a>' +
-    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><h1 style="margin:0;font-size:28px;letter-spacing:-.5px">Рейс ' + fdate(t.loading_date) + (t.clients ? ' · ' + esc(t.clients.name) : '') + '</h1>' + tripStatus(t) + '<button class="btn ghost small" id="editTripBtn" type="button">Редактировать</button></div></div>' +
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><h1 style="margin:0;font-size:28px;letter-spacing:-.5px">Рейс ' + fdate(t.loading_date) + (t.clients ? ' · ' + esc(t.clients.name) : '') + '</h1>' + tripStatus(t) + '<button class="btn ghost small" id="editTripBtn" type="button">Редактировать</button>' +
+      '<span class="stsel"><label for="tripSt">Статус</label><select id="tripSt">' + Object.entries(DEAL_STATUS).map(([k, v]) => '<option value="' + k + '"' + (normStatus(t.status) === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><span id="tripStMsg" class="muted" role="status"></span></span></div></div>' +
     (dr.error ? '<div class="err">Документы не загрузились: ' + esc(dr.error.message) + '</div>' : '') +
     '<div class="cols"><div class="a">' +
       '<div class="card"><h3>Маршрут и груз</h3><div class="grid2">' +
@@ -458,6 +462,16 @@ async function renderTrip(id) {
     '</div></div>';
 
   $('editTripBtn').onclick = () => openTripForm(t);
+  $('tripSt').onchange = async (e) => {
+    const sel = e.target, prev = normStatus(t.status), st = sel.value;
+    sel.disabled = true; $('tripStMsg').textContent = 'Сохраняю...';
+    const r = await db.from('trips').update({status: st}).eq('id', id);
+    sel.disabled = false;
+    if (r.error) { sel.value = prev; $('tripStMsg').textContent = ''; alert('Не удалось сменить статус: ' + r.error.message); return; }
+    t.status = st;
+    orders = normalizeOrders(orders, trips);
+    $('tripStMsg').textContent = 'Сохранено';
+  };
   $('clientForm').onsubmit = async (e) => {
     e.preventDefault();
     const box = $('clientErr'); box.classList.add('hidden');
@@ -561,7 +575,8 @@ function openTripForm(t) {
 }
 
 /* ===== Расчёты сделок ===== */
-const DEAL_STATUS = {draft: 'Черновик', active: 'Сделка', done: 'Завершена'};
+// Единые статусы всех заказов (и рейсов, и сделок). Черновик в итоги не идёт.
+const DEAL_STATUS = {draft: 'Черновик', active: 'Активный', done: 'Завершён'};
 const BASIS = {fixed: 'Фиксированно', per_mark: 'За бутылку (марки)', per_sticker: 'За бутылку (стикеры)'};
 const TAX_RATES = [0.18, 0.05];
 const COMPANIES = ['ТОВ TradeWay', 'ФОП Эльнур'];
@@ -709,6 +724,7 @@ function drawDeal(okMsg) {
     (okMsg ? '<div class="okbox">' + esc(okMsg) + '</div>' : '') +
     '<div class="deal-grid"><div class="deal-left">' +
       '<section class="card" aria-label="Объём и условия"><div class="dfields">' +
+        '<div><label for="dStatus">Статус</label><select id="dStatus">' + Object.entries(DEAL_STATUS).map(([k, v]) => '<option value="' + k + '"' + (normStatus(d.status) === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></div>' +
         '<div class="w"><label for="dTitle">Название</label><input id="dTitle" value="' + val(d.title) + '"></div>' +
         '<div class="w"><label for="dClient">Клиент</label><input id="dClient" list="dClientList" value="' + val(d.client_name) + '" placeholder="Название клиента"><datalist id="dClientList">' + clients.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
         '<div><label for="dMarks" title="Бутылок под акцизные марки">Бут. под марки</label><input id="dMarks" inputmode="numeric" value="' + val(d.qty_marks) + '"></div>' +
@@ -734,7 +750,7 @@ function drawDeal(okMsg) {
       '<div class="card"><h3 class="sm">Итог</h3><div class="scroll"><table class="tot"><thead><tr><th></th><th class="r">По расчёту</th><th class="r">Выставлено</th></tr></thead><tbody id="dTot"></tbody></table></div></div>' +
       '<div id="dWarn"></div>' +
       '<div class="side-acts"><button class="btn" id="dSave" type="button">Сохранить</button>' +
-        (d.status === 'draft' ? '<button class="btn ghost" id="dActivate" type="button">Создать сделку</button>' : '') + '</div>' +
+'</div>' +
     '</aside></div></div>';
 
   const bindNum = (elId, field) => { $(elId).oninput = (e) => { d[field] = numOrNull(e.target.value); updateDealCalc(); }; };
@@ -780,7 +796,7 @@ function drawDeal(okMsg) {
     if (!c) $('dLines').lastElementChild.querySelector('[data-f="name"]').focus();
   };
   $('dSave').onclick = () => saveDeal(false);
-  if ($('dActivate')) $('dActivate').onclick = () => saveDeal(true);
+  $('dStatus').onchange = (e) => { d.status = e.target.value; };
   updateDealCalc();
 }
 
@@ -837,7 +853,7 @@ async function saveDeal(activate) {
       tax_rate: Number(d.tax_rate) || 0, final_price: d.final_price,
       start_date: d.start_date || null, end_date: d.end_date || null, company: d.company || null,
       currency: dealCur(d), fx_to_eur: dealCur(d) === 'EUR' ? 1 : Number(d.fx_to_eur)};
-    if (activate) row.status = 'active';
+    row.status = activate ? 'active' : normStatus(d.status);
     let r = await db.from('deals').update(row).eq('id', s.id);
     if (r.error) throw r.error;
     if (s.removed.length) {
@@ -856,7 +872,7 @@ async function saveDeal(activate) {
     if (ins.length) { r = await db.from('deal_lines').insert(ins); if (r.error) throw r.error; }
     const cl = await db.from('clients').select('id, name').order('name');
     if (!cl.error) clients = cl.data;
-    await renderDeal(s.id, activate ? 'Сделка создана и сохранена.' : 'Сохранено.');
+    await renderDeal(s.id, 'Сохранено. Статус: ' + DEAL_STATUS[row.status] + '.');
   } catch (err) {
     fail('Не удалось сохранить: ' + err.message);
     btns.forEach((b) => { b.disabled = false; });
@@ -866,8 +882,15 @@ async function saveDeal(activate) {
 
 /* ===== Заказы: общий список рейсов и сделок из представления orders (все суммы там уже в евро) ===== */
 const ORDER_KIND = {trip: 'Рейс', deal: 'С расчётом'};
-const ORDER_STATUS = {imported: 'Импорт', draft: 'Черновик', active: 'Активный', done: 'Завершён'};
-const ORDER_COUNTED = ['imported', 'active', 'done'];   // черновики в итоги не идут
+const ORDER_STATUS = DEAL_STATUS;
+const ORDER_COUNTED = ['active', 'done'];   // черновики в итоги не идут
+// Статус рейса хранится в самом рейсе (trips.status). Всё, что не draft/active/done
+// (старые «Импорт», пустые и прочие значения из старой таблицы), считается «Завершён».
+const normStatus = (st) => DEAL_STATUS[st] ? st : 'done';
+function normalizeOrders(rows, tripRows) {
+  const tripSt = new Map((tripRows || []).map((t) => [t.id, t.status]));
+  return (rows || []).map((o) => Object.assign({}, o, {status: o.kind === 'trip' ? normStatus(tripSt.get(o.id)) : normStatus(o.status)}));
+}
 const NEW_ORDER_TAX = 0.18;
 const NEW_ORDER_COMPANY = COMPANIES[0];
 
@@ -876,13 +899,13 @@ let ordersFilter = {mode: 'all', from: '', to: '', client: '', kind: '', status:
 
 async function loadOrders() {
   const r = await db.from('orders').select('*');
-  if (r.error) { orders = []; ordersErr = r.error.message; } else { orders = r.data; ordersErr = null; }
+  if (r.error) { orders = []; ordersErr = r.error.message; } else { orders = normalizeOrders(r.data, trips); ordersErr = null; }
   ordersLoadedAt = Date.now();
 }
 const clientName = (id) => { const c = clients.find((x) => x.id === id); return c ? c.name : ''; };
 const numZ = (v) => { const x = Number(v); return (v == null || v === '' || !isFinite(x)) ? 0 : x; };
 
-// Чистая функция итогов: только imported/active/done, по дате загрузки (start_date). Прибыль = сумма net_eur.
+// Чистая функция итогов: только active/done, по дате загрузки (start_date). Прибыль = сумма net_eur.
 function ordersTotals(rows, range, nameOf) {
   const list = (rows || []).filter((o) => ORDER_COUNTED.includes(o.status) && inRange(o.start_date, range));
   const blank = () => ({income: 0, cost: 0, tax: 0, profit: 0, count: 0});
