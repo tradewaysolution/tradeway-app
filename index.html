@@ -41,6 +41,13 @@ button{font-family:inherit}
 .btn{padding:11px 18px;font-size:14px;font-weight:500;color:#fff;background:var(--navy);border:0;border-radius:8px;cursor:pointer}
 .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--field)}
 .btn.small{padding:8px 12px;font-size:13px}
+.dropz{display:flex;flex-direction:column;align-items:center;gap:4px;margin:16px 20px;padding:18px;border:2px dashed var(--line);border-radius:10px;cursor:pointer;text-align:center;font-size:14px}
+.dropz.over{border-color:var(--navy);background:#EEF3F9}
+.docrow{display:flex;align-items:center;gap:10px;padding:10px 20px;border-top:1px solid var(--line);font-size:14px}
+.docrow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.docrow .dt{font-size:12px}
+.iconbtn{border:0;background:none;cursor:pointer;color:var(--muted);font-size:15px;padding:4px 6px;border-radius:6px}
+.iconbtn:hover{background:var(--bg);color:var(--ink)}
 .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
 .metric{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px}
 .metric .l{font-size:13px;color:var(--muted)}
@@ -510,15 +517,12 @@ async function renderTrip(id) {
   setNav('orders');
   const t = trips.find((x) => x.id === id);
   if (!t) { $('view').innerHTML = '<div class="err">Рейс не найден</div><a href="#/orders">К списку заказов</a>'; return; }
-  const dr = await db.from('documents').select('*').eq('trip_id', id).order('created_at');
-  const docs = dr.error ? [] : dr.data;
   const p = profit(t);
   const legacy = t.legacy ? Object.entries(t.legacy).map(([k, v]) => esc(k) + ': ' + esc(v)).join('\n') : '';
   $('view').innerHTML =
     '<div><a href="#/orders" style="font-size:14px;text-decoration:none">← Все заказы</a>' +
     '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px"><h1 style="margin:0;font-size:28px;letter-spacing:-.5px">Рейс ' + fdate(t.loading_date) + (t.clients ? ' · ' + esc(t.clients.name) : '') + '</h1>' + tripStatus(t) + '<button class="btn ghost small" id="editTripBtn" type="button">Редактировать</button>' +
       '<span class="stsel"><label for="tripSt">Статус</label><select id="tripSt">' + Object.entries(DEAL_STATUS).map(([k, v]) => '<option value="' + k + '"' + (normStatus(t.status) === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select><span id="tripStMsg" class="muted" role="status"></span></span></div></div>' +
-    (dr.error ? '<div class="err">Документы не загрузились: ' + esc(dr.error.message) + '</div>' : '') +
     '<div class="cols"><div class="a">' +
       '<div class="card"><h3>Маршрут и груз</h3><div class="grid2">' +
         '<div class="kv"><div class="k">Загрузка</div><div class="val">' + esc(t.city || '—') + '<br>' + fdate(t.loading_date) + '</div></div>' +
@@ -531,16 +535,7 @@ async function renderTrip(id) {
       '</div>' +
       (legacy ? '<details><summary>Исходные данные из старой таблицы</summary><pre>' + legacy + '</pre></details>' : '') +
       '</div>' +
-      '<div class="card"><h3>Документы</h3>' +
-        (docs.length ? docs.map((d) => '<div class="row"><div><div style="font-weight:500">' + esc(d.title || DOC_TYPES[d.doc_type] || d.doc_type) + '</div><div class="sub">' + esc(DOC_TYPES[d.doc_type] || d.doc_type) + '</div></div>' +
-          '<div style="display:flex;align-items:center;gap:16px">' + (d.drive_url ? '<a href="' + esc(d.drive_url) + '" target="_blank" rel="noopener noreferrer">Открыть</a>' : '') +
-          '<button class="btn ghost small" type="button" data-deldoc="' + esc(d.id) + '">Удалить</button></div></div>').join('') : '<div class="pad muted">Документов пока нет</div>') +
-        '<form id="docForm" class="pad" style="border-top:1px solid var(--line)"><div id="docErr" class="err hidden"></div>' +
-          '<div class="f2"><div><label for="docType">Тип</label><select id="docType">' + Object.entries(DOC_TYPES).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select></div>' +
-          '<div><label for="docTitle">Название</label><input id="docTitle" placeholder="Напр. CMR №456812"></div></div>' +
-          '<div><label for="docUrl">Ссылка на файл в Google Drive</label><input id="docUrl" type="url" placeholder="https://drive.google.com/..." required></div>' +
-          '<div><button class="btn small" type="submit">Добавить документ</button></div></form>' +
-      '</div>' +
+      '<div class="card"><h3>Документы рейса</h3><div id="tDocs"></div></div>' +
     '</div><div class="b">' +
       vetBoxHtml([t.carrier_id], t.cargo_excise, t.cargo_value_eur) +
       '<div class="card"><h3>Деньги</h3><div class="pad">' +
@@ -577,21 +572,105 @@ async function renderTrip(id) {
       await loadAll(); renderTrip(id);
     } catch (err) { box.textContent = 'Не удалось сохранить: ' + err.message; box.classList.remove('hidden'); }
   };
-  $('docForm').onsubmit = async (e) => {
-    e.preventDefault();
-    const box = $('docErr'); box.classList.add('hidden');
-    const url = $('docUrl').value.trim();
-    if (!/^https:\/\//i.test(url)) { box.textContent = 'Ссылка должна начинаться с https://'; box.classList.remove('hidden'); return; }
-    const r = await db.from('documents').insert({trip_id: id, doc_type: $('docType').value, title: $('docTitle').value.trim() || null, drive_url: url});
-    if (r.error) { box.textContent = 'Не удалось добавить: ' + r.error.message; box.classList.remove('hidden'); return; }
-    renderTrip(id);
+  mountDocs('tDocs', {trip_id: id}, {client: t.clients ? t.clients.name : '', name: ((t.loading_date || '') + ' ' + (t.city || 'Рейс')).trim()});
+}
+
+// ===== Документы рейса: загрузка на Google Диск через Apps Script =====
+// Один блок для рейса и для заказа с расчётом. Файлы лежат на Диске: TradeWay Docs / Клиент / Папка заказа.
+let docsCfg = null;
+async function docsConfig() {
+  if (docsCfg) return docsCfg;
+  const r = await db.from('app_settings').select('key, value').in('key', ['docs_upload_url', 'docs_upload_secret']);
+  if (r.error) throw new Error('настройки загрузки не найдены (' + r.error.message + ')');
+  const m = Object.fromEntries((r.data || []).map((x) => [x.key, x.value]));
+  if (!m.docs_upload_url || !m.docs_upload_secret) throw new Error('загрузка на Диск ещё не настроена');
+  docsCfg = {url: m.docs_upload_url, secret: m.docs_upload_secret};
+  return docsCfg;
+}
+async function docsCall(payload) {
+  const c = await docsConfig();
+  const res = await fetch(c.url, {method: 'POST', body: JSON.stringify(Object.assign({secret: c.secret}, payload))});
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || 'ошибка Диска');
+  return j;
+}
+const fileToB64 = (file) => new Promise((ok, bad) => {
+  const fr = new FileReader();
+  fr.onload = () => ok(String(fr.result).split(',')[1]);
+  fr.onerror = () => bad(new Error('не удалось прочитать файл'));
+  fr.readAsDataURL(file);
+});
+const docIcon = (n) => /\.(jpe?g|png|heic|webp)$/i.test(n || '') ? '🖼' : '📄';
+
+// link: {trip_id} или {deal_id}; folder: {client, name}
+async function mountDocs(boxId, link, folder) {
+  const box = $(boxId); if (!box) return;
+  const key = link.trip_id ? 'trip_id' : 'deal_id', val = link.trip_id || link.deal_id;
+  const r = await db.from('documents').select('*').eq(key, val).order('created_at');
+  const docs = r.error ? [] : r.data;
+  box.innerHTML =
+    (r.error ? '<div class="err">Документы не загрузились: ' + esc(r.error.message) + '</div>' : '') +
+    '<label class="dropz" id="' + boxId + 'Drop"><input type="file" multiple id="' + boxId + 'File" class="sr">' +
+      '<span>Перетащи файлы сюда или <u>выбери</u></span><span class="muted" id="' + boxId + 'Msg" role="status"></span></label>' +
+    (docs.length ? docs.map((d) => {
+      const name = d.title || DOC_TYPES[d.doc_type] || 'Документ';
+      return '<div class="docrow" data-id="' + esc(d.id) + '"><span class="ic">' + docIcon(name) + '</span>' +
+        '<span class="nm">' + (d.drive_url ? '<a href="' + esc(d.drive_url) + '" target="_blank" rel="noopener noreferrer">' + esc(name) + '</a>' : esc(name)) + '</span>' +
+        '<span class="muted dt">' + fdate(String(d.created_at || '').slice(0, 10)) + '</span>' +
+        '<button type="button" class="iconbtn" data-ren title="Переименовать">✎</button>' +
+        '<button type="button" class="iconbtn" data-del title="Убрать">✕</button></div>';
+    }).join('') : '<div class="pad muted">Документов пока нет</div>');
+
+  const msg = $(boxId + 'Msg');
+  const reload = () => mountDocs(boxId, link, folder);
+  const upload = async (files) => {
+    files = Array.from(files || []); if (!files.length) return;
+    let done = 0, fails = [];
+    for (const f of files) {
+      msg.textContent = 'Загружаю ' + (done + 1) + ' из ' + files.length + '...';
+      try {
+        if (f.size > 30 * 1024 * 1024) throw new Error('больше 30 МБ');
+        const j = await docsCall({action: 'upload', client: folder.client, folder: folder.name, name: f.name, mime: f.type, data: await fileToB64(f)});
+        const ins = await db.from('documents').insert(Object.assign({doc_type: 'other', title: j.name, drive_url: j.url, drive_file_id: j.id}, link));
+        if (ins.error) throw ins.error;
+        done++;
+      } catch (e) { fails.push(f.name + ': ' + e.message); }
+    }
+    if (fails.length) alert('Не загрузилось:\n' + fails.join('\n'));
+    reload();
   };
-  document.querySelectorAll('[data-deldoc]').forEach((b) => {
-    b.onclick = async () => {
-      if (!confirm('Удалить этот документ из рейса? Файл в Google Drive останется.')) return;
-      const r = await db.from('documents').delete().eq('id', b.getAttribute('data-deldoc'));
-      if (r.error) { alert('Не удалось удалить: ' + r.error.message); return; }
-      renderTrip(id);
+  $(boxId + 'File').onchange = (e) => upload(e.target.files);
+  const drop = $(boxId + 'Drop');
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); upload(e.dataTransfer.files); };
+
+  box.querySelectorAll('.docrow').forEach((row) => {
+    const d = docs.find((x) => x.id === row.getAttribute('data-id'));
+    row.querySelector('[data-ren]').onclick = async () => {
+      const cur = d.title || '';
+      const name = prompt('Новое название', cur);
+      if (!name || name.trim() === cur) return;
+      try {
+        let title = name.trim();
+        if (d.drive_file_id) {
+          const ext = (cur.match(/\.[a-z0-9]{2,5}$/i) || [''])[0];
+          if (ext && !/\.[a-z0-9]{2,5}$/i.test(title)) title += ext;
+          title = (await docsCall({action: 'rename', id: d.drive_file_id, name: title})).name;
+        }
+        const u = await db.from('documents').update({title}).eq('id', d.id);
+        if (u.error) throw u.error;
+        reload();
+      } catch (e) { alert('Не удалось переименовать: ' + e.message); }
+    };
+    row.querySelector('[data-del]').onclick = async () => {
+      if (!confirm('Убрать «' + (d.title || 'документ') + '» из рейса?' + (d.drive_file_id ? ' Файл переедет на Диске в папку «_удалённые».' : ' Файл на Диске останется.'))) return;
+      try {
+        if (d.drive_file_id) await docsCall({action: 'trash', id: d.drive_file_id});
+        const x = await db.from('documents').delete().eq('id', d.id);
+        if (x.error) throw x.error;
+        reload();
+      } catch (e) { alert('Не удалось убрать: ' + e.message); }
     };
   });
 }
@@ -868,6 +947,7 @@ function drawDeal(okMsg) {
           '<button class="btn small" id="addLineBtn" type="button">+ Добавить строку</button></div>' +
       '</section>' +
       '<section class="card" aria-label="Счета к оплате"><h3 class="sm">Счета к оплате</h3><div id="dPay"></div></section>' +
+      '<section class="card" aria-label="Документы рейса"><h3 class="sm">Документы рейса</h3><div id="dDocs"></div></section>' +
     '</div><aside class="deal-side">' +
       '<div class="card"><h3 class="sm">Итог</h3><div class="scroll"><table class="tot"><thead><tr><th></th><th class="r">По расчёту</th><th class="r">Выставлено</th></tr></thead><tbody id="dTot"></tbody></table></div></div>' +
       '<div class="card"><h3 class="sm">Оплата клиента</h3><div class="cpay">' +
@@ -881,6 +961,7 @@ function drawDeal(okMsg) {
   const bindNum = (elId, field) => { $(elId).oninput = (e) => { d[field] = numOrNull(e.target.value); updateDealCalc(); }; };
   $('dTitle').oninput = (e) => { d.title = e.target.value; };
   $('dClient').oninput = (e) => { d.client_name = e.target.value; };
+  mountDocs('dDocs', {deal_id: id}, {client: d.client_name, name: ((d.start_date || '') + ' ' + (d.title || '')).trim()});
   bindNum('dMarks', 'qty_marks'); bindNum('dStickers', 'qty_stickers'); bindNum('dPallets', 'pallets'); bindNum('dFinal', 'final_price');
   $('dTax').onchange = (e) => { d.tax_rate = Number(e.target.value); updateDealCalc(); };
   $('dStart').onchange = (e) => { d.start_date = e.target.value || null; };
