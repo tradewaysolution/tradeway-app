@@ -632,7 +632,11 @@ async function mountDocs(boxId, link, folder) {
         if (f.size > 30 * 1024 * 1024) throw new Error('больше 30 МБ');
         const j = await docsCall({action: 'upload', client: folder.client, folder: folder.name, name: f.name, mime: f.type, data: await fileToB64(f)});
         const ins = await db.from('documents').insert(Object.assign({doc_type: 'other', title: j.name, drive_url: j.url, drive_file_id: j.id}, link));
-        if (ins.error) throw ins.error;
+        if (ins.error) {
+          // Запись в базе не сохранилась — убираем файл с Диска в «_удалённые», чтобы не было файла без записи.
+          try { await docsCall({action: 'trash', id: j.id}); } catch (e2) { /* файл останется в папке заказа */ }
+          throw ins.error;
+        }
         done++;
       } catch (e) { fails.push(f.name + ': ' + e.message); }
     }
