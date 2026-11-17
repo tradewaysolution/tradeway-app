@@ -602,8 +602,27 @@ const fileToB64 = (file) => new Promise((ok, bad) => {
 });
 const docIcon = (n) => /\.(jpe?g|png|heic|webp)$/i.test(n || '') ? '🖼' : '📄';
 
+// Если файл переименовали на Диске (вручную или по просьбе Claude), берём новое имя в CRM.
+// Тихо, в фоне: если загрузчик старый или Диск недоступен, просто ничего не меняется.
+async function syncDocNames(docs) {
+  const withId = (docs || []).filter((d) => d.drive_file_id);
+  if (!withId.length) return false;
+  let names;
+  try { names = (await docsCall({action: 'names', ids: withId.map((d) => d.drive_file_id)})).names || {}; } catch (e) { return false; }
+  let changed = false;
+  for (const d of withId) {
+    const n = names[d.drive_file_id];
+    if (n && n !== d.title) {
+      const u = await db.from('documents').update({title: n}).eq('id', d.id);
+      if (!u.error) changed = true;
+    }
+  }
+  return changed;
+}
+
 // link: {trip_id} или {deal_id}; folder: {client, name}
-async function mountDocs(boxId, link, folder) {
+// synced = true: названия с Диска уже сверены в этот раз, второй раз не спрашиваем.
+async function mountDocs(boxId, link, folder, synced) {
   const box = $(boxId); if (!box) return;
   const key = link.trip_id ? 'trip_id' : 'deal_id', val = link.trip_id || link.deal_id;
   const r = await db.from('documents').select('*').eq(key, val).order('created_at');
@@ -622,7 +641,8 @@ async function mountDocs(boxId, link, folder) {
     }).join('') : '<div class="pad muted">Документов пока нет</div>');
 
   const msg = $(boxId + 'Msg');
-  const reload = () => mountDocs(boxId, link, folder);
+  const reload = () => mountDocs(boxId, link, folder, true);
+  if (!synced) syncDocNames(docs).then((changed) => { if (changed) reload(); });
   const upload = async (files) => {
     files = Array.from(files || []); if (!files.length) return;
     let done = 0, fails = [];

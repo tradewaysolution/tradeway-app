@@ -19,6 +19,7 @@ function doPost(e) {
     if (req.action === 'upload') return out_(upload_(req, props.getProperty('ROOT_ID')));
     if (req.action === 'rename') return out_(rename_(req));
     if (req.action === 'trash') return out_(trash_(req));
+    if (req.action === 'names') return out_(names_(req));
     return out_({ok: false, error: 'Неизвестное действие'});
   } catch (err) {
     return out_({ok: false, error: String(err && err.message || err)});
@@ -49,6 +50,20 @@ function trash_(req) {
   var bin = sub_(parents.next(), '_удалённые');
   f.moveTo(bin);
   return {ok: true};
+}
+
+// Текущие имена файлов на Диске (CRM подтягивает их, если файл переименовали на Диске).
+function names_(req) {
+  var res = {};
+  (req.ids || []).slice(0, 200).forEach(function (id) {
+    try {
+      var f = DriveApp.getFileById(id);
+      res[id] = f.isTrashed() ? null : f.getName();
+    } catch (e) {
+      res[id] = null;
+    }
+  });
+  return {ok: true, names: res};
 }
 
 function sub_(parent, name) {
