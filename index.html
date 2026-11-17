@@ -190,6 +190,35 @@ tr.total td{font-weight:600;border-top:2px solid var(--line)}
 .side-acts{display:flex;gap:8px;flex-wrap:wrap}
 .side-acts .btn{flex:1 1 auto}
 @media (max-width:900px){.deal-grid{grid-template-columns:minmax(0,1fr)}.deal-side{position:static}.lines-wrap{max-height:60vh}}
+/* перевозчики · СБ */
+.chip.bad{background:#FCEBEB;color:#9B1C1C}
+.chip.info{background:#E6EDF6;color:var(--navy)}
+.chip.gray{background:#EEF1F5;color:var(--muted)}
+.badbox{background:#FCEBEB;color:#9B1C1C;border-radius:8px;padding:8px 12px;font-size:13px;line-height:1.4}
+.infobox{background:#E6EDF6;color:var(--navy);border-radius:8px;padding:8px 12px;font-size:13px;line-height:1.4}
+.alert{display:flex;align-items:flex-start;gap:14px;padding:12px 20px;border-top:1px solid var(--line);font-size:14px}
+.alert:first-of-type{border-top:0}
+.alert .chip{flex:0 0 auto;min-width:64px;text-align:center}
+.alert .grow{flex:1 1 auto;min-width:0}
+.vi{display:flex;gap:12px;align-items:flex-start;padding:10px 20px;border-top:1px solid var(--line);font-size:14px}
+.vi .dot{flex:0 0 10px;height:10px;border-radius:50%;margin-top:5px;background:#A0AABA}
+.dot.pass{background:var(--ok)!important}.dot.warn{background:#C27A00!important}.dot.fail{background:#9B1C1C!important}
+.vi .src{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;padding-left:8px}
+.lvlbox{border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:6px}
+.lvlbox .n{font-size:28px;font-weight:600;letter-spacing:-.5px}
+.lvl-base{background:var(--okbg);color:var(--ok)}.lvl-standard{background:#E6EDF6;color:var(--navy)}.lvl-enhanced{background:#FCEBEB;color:#9B1C1C}
+.lvlbox .why{font-size:14px;line-height:1.5;color:var(--ink)}
+.chk{display:flex;gap:12px;align-items:flex-start;padding:10px 20px;border-top:1px solid var(--line);cursor:pointer;font-weight:400;margin:0;font-size:14px}
+.chk input{width:18px;height:18px;margin-top:2px;flex:0 0 auto}
+.chk .grow{flex:1 1 auto}
+textarea.json{font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:200px}
+.marks{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.marks span{font-size:12px;padding:3px 8px;border-radius:6px;background:var(--bg)}
+.vetc{display:flex;flex-direction:column;gap:6px}
+.vetc .who{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:13px;font-weight:500}
+.optrow{display:flex;flex-direction:column;gap:6px}
+.optrow .l{font-size:13px;color:var(--muted)}
+ul.plain{margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -221,6 +250,7 @@ tr.total td{font-weight:600;border-top:2px solid var(--line)}
       <a href="#/" id="nav-home">Дашборд</a>
       <a href="#/orders" id="nav-orders">Заказы</a>
       <a href="#/contractors" id="nav-carriers">Контрагенты</a>
+      <a href="#/sb" id="nav-sb">Перевозчики · СБ</a>
       <a href="#/finance" id="nav-finance">Финансы</a>
     </nav>
     <div class="spacer"></div>
@@ -250,11 +280,13 @@ const DOC_TYPES = {
 let trips = [], clients = [], carriers = [];
 
 async function loadAll() {
-  const [t, c, k] = await Promise.all([
+  const [t, c, k, v] = await Promise.all([
     db.from('trips').select('*, clients(name), carriers(name)').order('loading_date', {ascending: false, nullsFirst: false}),
     db.from('clients').select('id, name').order('name'),
-    db.from('carriers').select('*').order('name')
+    db.from('carriers').select('*').order('name'),
+    db.from('carrier_checks').select('id').limit(1)
   ]);
+  vetReady = !v.error;   // таблицы СБ есть только после запуска sql/006
   if (t.error) throw t.error;
   if (c.error) throw c.error;
   if (k.error) throw k.error;
@@ -366,6 +398,7 @@ function setNav(active) {
   $('nav-orders').classList.toggle('active', active === 'orders' || active === 'trips' || active === 'deals');
   $('nav-carriers').classList.toggle('active', active === 'carriers');
   $('nav-finance').classList.toggle('active', active === 'finance');
+  $('nav-sb').classList.toggle('active', active === 'sb');
 }
 
 function tripStatus(t) {
@@ -439,11 +472,13 @@ function renderDashboard(fresh) {
       '<div class="metric"><div class="l">Рейсов</div><div class="v">' + tot.tripsCount + '</div></div>' +
       '<div class="metric"><div class="l">Сделок</div><div class="v">' + tot.dealsCount + '</div></div>' +
     '</div>' +
+    '<div id="dashExp"></div>' +
     (tot.noClientCount ? '<div class="card"><div class="row"><div><strong>У ' + tot.noClientCount + ' заказов не указан клиент.</strong><div class="sub">Откройте заказ и назначьте клиента, тогда он появится в отчётах по клиентам.</div></div><button class="btn ghost small" id="showNoClient" type="button">Показать заказы</button></div></div>' : '') +
     clientsBlock(tot) +
     '<div class="card" id="recentCard"><h3>Последние заказы</h3>' + ordersTable(recent) + '</div>';
   bindPeriod(dashPeriod, 'p', () => renderDashboard(true));
   bindOrderRows($('recentCard'));
+  fillDashExpiring();
   if ($('toggleClients')) $('toggleClients').onclick = () => { dashAllClients = !dashAllClients; renderDashboard(true); };
   if ($('showNoClient')) $('showNoClient').onclick = () => {
     Object.assign(ordersFilter, {mode: dashPeriod.mode, from: dashPeriod.from, to: dashPeriod.to, client: '__none', kind: '', status: ''});
@@ -488,8 +523,10 @@ async function renderTrip(id) {
       '<div class="card"><h3>Маршрут и груз</h3><div class="grid2">' +
         '<div class="kv"><div class="k">Загрузка</div><div class="val">' + esc(t.city || '—') + '<br>' + fdate(t.loading_date) + '</div></div>' +
         '<div class="kv"><div class="k">Выгрузка</div><div class="val">' + fdate(t.unloading_date) + '</div></div>' +
-        '<div class="kv"><div class="k">Груз</div><div class="val">' + esc(t.cargo || '—') + '<br>' + (t.weight_kg != null ? Number(t.weight_kg).toLocaleString('ru-RU') + ' кг' : '') + (t.pallets != null ? ', ' + esc(t.pallets) + ' палет' : '') + '</div></div>' +
-        '<div class="kv"><div class="k">Перевозчик и авто</div><div class="val">' + esc(t.carriers ? t.carriers.name : '—') + '<br>' + esc(t.vehicle || '') + '</div></div>' +
+        '<div class="kv"><div class="k">Груз</div><div class="val">' + esc(t.cargo || '—') + '<br>' + (t.weight_kg != null ? Number(t.weight_kg).toLocaleString('ru-RU') + ' кг' : '') + (t.pallets != null ? ', ' + esc(t.pallets) + ' палет' : '') +
+          (t.cargo_excise ? '<br><span class="chip warn">Акциз</span>' : '') + (t.cargo_value_eur != null ? '<br>Стоимость груза: ' + eur(t.cargo_value_eur) : '') + '</div></div>' +
+        '<div class="kv"><div class="k">Перевозчик и авто</div><div class="val">' + esc(t.carriers ? t.carriers.name : '—') +
+          (vetReady && t.carrier_id && carriers.find((c) => c.id === t.carrier_id) ? ' ' + vetChip(vetOf(carriers.find((c) => c.id === t.carrier_id))) : '') + '<br>' + esc(t.vehicle || '') + '</div></div>' +
         '<div class="kv"><div class="k">Счёт</div><div class="val">' + esc(t.invoice_number || '—') + '</div></div>' +
       '</div>' +
       (legacy ? '<details><summary>Исходные данные из старой таблицы</summary><pre>' + legacy + '</pre></details>' : '') +
@@ -505,6 +542,7 @@ async function renderTrip(id) {
           '<div><button class="btn small" type="submit">Добавить документ</button></div></form>' +
       '</div>' +
     '</div><div class="b">' +
+      vetBoxHtml([t.carrier_id], t.cargo_excise, t.cargo_value_eur) +
       '<div class="card"><h3>Деньги</h3><div class="pad">' +
         '<div style="display:flex;justify-content:space-between"><span class="muted">Доход</span><span>' + eur(t.income_eur) + '</span></div>' +
         '<div style="display:flex;justify-content:space-between"><span class="muted">Расход</span><span>' + eur(t.cost_eur) + '</span></div>' +
@@ -527,6 +565,7 @@ async function renderTrip(id) {
     t.status = st;
     orders = normalizeOrders(orders, trips);
     $('tripStMsg').textContent = 'Сохранено';
+    if (st === 'done' && prev !== 'done') offerRatings('trip', id, 'Рейс ' + fdate(t.loading_date), [t.carrier_id]);
   };
   $('clientForm').onsubmit = async (e) => {
     e.preventDefault();
@@ -584,20 +623,38 @@ function openTripForm(t) {
     '<div class="f2"><div><label for="nWeight">Вес, кг</label><input id="nWeight" inputmode="decimal" value="' + g('weight_kg') + '"></div><div><label for="nPallets">Палет</label><input id="nPallets" inputmode="numeric" value="' + g('pallets') + '"></div></div>' +
     '<div class="f2"><div><label for="nIncome">Доход, €</label><input id="nIncome" inputmode="decimal" value="' + g('income_eur') + '"></div><div><label for="nCost">Расход, €</label><input id="nCost" inputmode="decimal" value="' + g('cost_eur') + '"></div></div>' +
     '<div><label for="nTax">Налог, €</label><input id="nTax" inputmode="decimal" value="' + g('tax_eur') + '"></div>' +
+    (vetReady ? '<div class="f2"><div><label for="nValue">Стоимость груза, €</label><input id="nValue" inputmode="decimal" value="' + g('cargo_value_eur') + '"></div>' +
+      '<div><label for="nExcise">Тип груза</label><select id="nExcise"><option value="0">Обычный</option><option value="1"' + (edit && t.cargo_excise ? ' selected' : '') + '>Акцизный</option></select></div></div>' : '') +
     '<div><label for="nCarrier">Перевозчик</label><input id="nCarrier" list="ca" value="' + kname + '" placeholder="Название перевозчика"><datalist id="ca">' + carriers.map((c) => '<option value="' + esc(c.name) + '">').join('') + '</datalist></div>' +
+    '<div id="tripVet"></div>' +
     '<div><label for="nVehicle">Авто и водитель</label><input id="nVehicle" value="' + g('vehicle') + '"></div>' +
     '<div><label for="nInvoice">Номер счёта</label><input id="nInvoice" value="' + g('invoice_number') + '"></div>' +
     '<div class="acts"><button class="btn ghost" type="button" id="cancelTrip">Отмена</button><button class="btn" type="submit" id="saveTrip">Сохранить</button></div></form></div>';
   $('cancelTrip').onclick = () => { $('modalRoot').innerHTML = ''; };
+  // Статус перевозчика прямо в форме; для заблокированного (нового в этом рейсе) — поле причины.
+  const vetCarrier = () => { const n = $('nCarrier').value.trim(); return n ? carriers.find((c) => c.name === n) : null; };
+  const needReason = () => { const c = vetCarrier(); return !!(c && vetReady && vetOf(c) === 'blocked' && !(edit && t.carrier_id === c.id)); };
+  const drawTripVet = () => {
+    const c = vetCarrier(), keep = $('nReason') ? $('nReason').value : '';
+    $('tripVet').innerHTML = (c ? vetBoxHtml([c.id], vetReady && $('nExcise').value === '1', vetReady ? numOrNull($('nValue').value) : null) : '') +
+      (needReason() ? '<div style="margin-top:10px"><label for="nReason">Причина: почему работаем с заблокированным перевозчиком</label><textarea id="nReason" rows="2">' + esc(keep) + '</textarea><div class="sub">Сохранится в журнал.</div></div>' : '');
+  };
+  $('nCarrier').oninput = drawTripVet;
+  if (vetReady) { $('nExcise').onchange = drawTripVet; $('nValue').oninput = drawTripVet; }
+  drawTripVet();
   $('tripForm').onsubmit = async (e) => {
     e.preventDefault();
     const box = $('tripErr'); box.classList.add('hidden');
     const nums = {weight_kg: numOrNull($('nWeight').value), pallets: numOrNull($('nPallets').value),
       income_eur: numOrNull($('nIncome').value), cost_eur: numOrNull($('nCost').value), tax_eur: numOrNull($('nTax').value)};
+    if (vetReady) nums.cargo_value_eur = numOrNull($('nValue').value);
     if (Object.values(nums).some((x) => x !== null && Number.isNaN(x))) {
-      box.textContent = 'Проверьте числа: в полях вес, палеты, доход, расход и налог должны быть только цифры.';
+      box.textContent = 'Проверьте числа: в полях вес, палеты, деньги и стоимость груза должны быть только цифры.';
       box.classList.remove('hidden'); return;
     }
+    const reason = needReason() ? ($('nReason') ? $('nReason').value.trim() : '') : '';
+    if (needReason() && !reason) { box.textContent = 'Перевозчик заблокирован СБ. Напишите причину, почему всё равно работаем с ним.'; box.classList.remove('hidden'); return; }
+    const blockedC = needReason() ? vetCarrier() : null;
     const btn = $('saveTrip'); btn.disabled = true; btn.textContent = 'Сохраняю...';
     try {
       const cid = await findOrCreate('clients', $('nClient').value);
@@ -608,9 +665,11 @@ function openTripForm(t) {
         city: $('nCity').value.trim() || null, cargo: $('nCargo').value.trim() || null,
         vehicle: $('nVehicle').value.trim() || null, invoice_number: $('nInvoice').value.trim() || null
       }, nums);
+      if (vetReady) row.cargo_excise = $('nExcise').value === '1';
       if (edit) {
         const r = await db.from('trips').update(row).eq('id', t.id);
         if (r.error) throw r.error;
+        if (blockedC) await logOverrides([blockedC], {trip_id: t.id}, reason);
         $('modalRoot').innerHTML = '';
         await loadAll();
         renderTrip(t.id);
@@ -618,6 +677,7 @@ function openTripForm(t) {
         row.status = 'new';
         const r = await db.from('trips').insert(row).select('id').single();
         if (r.error) throw r.error;
+        if (blockedC) await logOverrides([blockedC], {trip_id: r.data.id}, reason);
         $('modalRoot').innerHTML = '';
         await loadAll();
         location.hash = '#/trip/' + r.data.id;
@@ -746,7 +806,9 @@ async function renderDeal(id, okMsg) {
     deal: Object.assign({}, d.data, {client_name: d.data.clients ? d.data.clients.name : ''}),
     lines: l.data.map((x) => Object.assign({}, x, {key: 'k' + (++lineSeq), dirty: false})),
     removed: [],
-    catalog: c.data
+    catalog: c.data,
+    savedCarriers: new Set(l.data.map((x) => x.carrier_id).filter(Boolean)),   // для них причина блокировки уже не спрашивается
+    origStatus: normStatus(d.data.status)
   };
   drawDeal(okMsg);
 }
@@ -795,6 +857,8 @@ function drawDeal(okMsg) {
         '<div class="dt"><label for="dEnd" title="Выгрузка на складе">Выгрузка на складе</label><input id="dEnd" type="date" value="' + val(d.end_date) + '"></div>' +
         '<div class="w"><label for="dCompany">Компания</label><select id="dCompany"><option value="">— не выбрана —</option>' +
           compOpts.map((c) => '<option value="' + esc(c) + '"' + (d.company === c ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>' +
+        (vetReady ? '<div class="st"><label for="dExcise">Тип груза</label><select id="dExcise"><option value="0">Обычный</option><option value="1"' + (d.cargo_excise ? ' selected' : '') + '>Акцизный</option></select></div>' +
+          '<div class="w"><label for="dCargoVal" title="Нужна для уровня проверки перевозчика">Стоимость груза, €</label><input id="dCargoVal" inputmode="decimal" value="' + val(d.cargo_value_eur) + '"></div>' : '') +
       '</div></section>' +
       '<section class="card" aria-label="Статьи расчёта"><div class="lines-wrap"><table class="lines"><thead><tr>' +
         '<th>Статья</th><th>Основа</th><th class="r" title="Ставка себестоимости">Себест./ед., ' + sign + '</th><th class="r" title="Ставка продажи">Продажа/ед., ' + sign + '</th><th class="r">Себестоимость</th><th class="r">Продажа</th><th class="r">Разница</th><th>Контрагент</th><th title="Не подтверждено">Не подтв.</th><th><span class="sr">Удалить</span></th>' +
@@ -809,7 +873,7 @@ function drawDeal(okMsg) {
       '<div class="card"><h3 class="sm">Оплата клиента</h3><div class="cpay">' +
         '<div><label for="dInv" title="Если пусто — равно итоговой цене">Выставлено клиенту, ' + sign + '</label><input id="dInv" inputmode="decimal" value="' + val(d.client_invoice_amount) + '"></div>' +
         '<div><label for="dDue">Срок оплаты</label><input id="dDue" type="date" value="' + val(d.client_due_date) + '"></div></div></div>' +
-      '<div id="dWarn"></div>' +
+      '<div id="dVet"></div><div id="dWarn"></div>' +
       '<div class="side-acts"><button class="btn" id="dSave" type="button">Сохранить</button>' +
 '</div>' +
     '</aside></div></div>';
@@ -826,6 +890,10 @@ function drawDeal(okMsg) {
   if ($('dFx')) bindNum('dFx', 'fx_to_eur');
   bindNum('dInv', 'client_invoice_amount');
   $('dDue').onchange = (e) => { d.client_due_date = e.target.value || null; };
+  if (vetReady) {
+    $('dExcise').onchange = (e) => { d.cargo_excise = e.target.value === '1'; updateDealCalc(); };
+    bindNum('dCargoVal', 'cargo_value_eur');
+  }
 
   const onLine = (e) => { if (lineInput(e, s.lines, () => drawDeal())) updateDealCalc(); };
   const onPay = (e) => { if (payGroupEdit(e, s.lines, () => calcDeal(s.deal, s.lines).rows)) updateDealCalc(); };
@@ -880,6 +948,7 @@ function updateDealCalc() {
   const fxNum = Number(s.deal.fx_to_eur);
   $('dWarn').innerHTML = (res.unconfirmed ? '<div class="warnbox">Есть строки «не подтверждено»: итог может быть неполным.</div>' : '') +
     (cur !== 'EUR' && fxNum === 1 ? '<div class="warnbox">Курс к евро равен 1. Проверьте, что он указан верно.</div>' : '');
+  $('dVet').innerHTML = vetBoxHtml(s.lines.map((l) => l.carrier_id), !!s.deal.cargo_excise, s.deal.cargo_value_eur);
   $('dFinal').placeholder = m(a.price);
   $('dInv').placeholder = String(Math.round(b.price * 100) / 100).replace('.', ',');
   paintLinePay('dLines', s.lines, res.rows);
@@ -903,6 +972,10 @@ async function saveDeal(activate) {
     if (!String(l.name || '').trim()) return fail('У каждой строки должно быть название.');
     if (lineBad(l)) return fail('Проверьте суммы в строке «' + l.name + '»: только цифры.');
   }
+  if (d.cargo_value_eur != null && Number.isNaN(d.cargo_value_eur)) return fail('Проверьте поле «Стоимость груза»: только цифры.');
+  const blocked = newlyBlocked(s.lines.map((l) => l.carrier_id), s.savedCarriers);
+  const reason = blocked.length ? await askOverrideReason(blocked) : null;
+  if (blocked.length && !reason) return;
   const btns = [$('dSave'), $('dActivate')].filter(Boolean);
   btns.forEach((b) => { b.disabled = true; });
   $('dSave').textContent = 'Сохраняю...';
@@ -915,6 +988,7 @@ async function saveDeal(activate) {
       currency: dealCur(d), fx_to_eur: dealCur(d) === 'EUR' ? 1 : Number(d.fx_to_eur),
       client_invoice_amount: d.client_invoice_amount == null ? null : d.client_invoice_amount, client_due_date: d.client_due_date || null};
     row.status = activate ? 'active' : normStatus(d.status);
+    if (vetReady) Object.assign(row, {cargo_excise: !!d.cargo_excise, cargo_value_eur: d.cargo_value_eur == null ? null : d.cargo_value_eur});
     let r = await db.from('deals').update(row).eq('id', s.id);
     if (r.error) throw r.error;
     if (s.removed.length) {
@@ -933,9 +1007,12 @@ async function saveDeal(activate) {
     });
     if (upd.length) { r = await db.from('deal_lines').upsert(upd); if (r.error) throw r.error; }
     if (ins.length) { r = await db.from('deal_lines').insert(ins); if (r.error) throw r.error; }
+    await logOverrides(blocked, {deal_id: s.id}, reason);
     const cl = await db.from('clients').select('id, name').order('name');
     if (!cl.error) clients = cl.data;
+    const justDone = row.status === 'done' && s.origStatus !== 'done', ids = s.lines.map((l) => l.carrier_id);
     await renderDeal(s.id, 'Сохранено. Статус: ' + DEAL_STATUS[row.status] + '.');
+    if (justDone) offerRatings('deal', s.id, title, ids);
   } catch (err) {
     fail('Не удалось сохранить: ' + err.message);
     btns.forEach((b) => { b.disabled = false; });
@@ -1092,7 +1169,7 @@ async function renderNewOrder() {
   if (location.hash !== '#/orders/new') return;
   newOrder = {client_name: '', title: '', start_date: null, end_date: null, currency: 'EUR', fx_to_eur: null,
     quick: {key: 'q', carrier_id: null, invoice_no: '', due_date: null, payable_amount: null},
-    client_invoice_amount: null, client_due_date: null,
+    client_invoice_amount: null, client_due_date: null, cargo_excise: false, cargo_value_eur: null,
     income: null, cost: null, services: false, qty_marks: null, qty_stickers: null, lines: [],
     catalog: cat.error ? [] : cat.data, catErr: cat.error ? cat.error.message : ''};
   drawNewOrder();
@@ -1125,6 +1202,8 @@ function drawNewOrder() {
         fxFieldHtml('noFx', cur, s.fx_to_eur) +
         '<div><label for="noIncome">Доход, ' + sign + '</label><input id="noIncome" inputmode="decimal" value="' + val(s.income) + '"' + (s.services ? ' readonly title="Считается из расчёта по услугам"' : '') + '></div>' +
         '<div><label for="noCost">Затраты, ' + sign + '</label><input id="noCost" inputmode="decimal" value="' + val(s.cost) + '"' + (s.services ? ' readonly title="Считается из расчёта по услугам"' : '') + '></div>' +
+        (vetReady ? '<div class="st"><label for="noExcise">Тип груза</label><select id="noExcise"><option value="0">Обычный</option><option value="1"' + (s.cargo_excise ? ' selected' : '') + '>Акцизный</option></select></div>' +
+          '<div class="w"><label for="noCargoVal" title="Нужна для уровня проверки перевозчика">Стоимость груза, €</label><input id="noCargoVal" inputmode="decimal" value="' + val(s.cargo_value_eur) + '"></div>' : '') +
       '</div>' +
       (s.services ? '' : '<div class="qpay-h">Оплата исполнителю</div><table class="lines qpay"><tbody id="noQuick">' + linePayRow(s.quick) + '</tbody></table>') +
       '<label class="toggle"><input type="checkbox" id="noSvc"' + (s.services ? ' checked' : '') + '> Добавить расчёт по услугам</label>' +
@@ -1149,7 +1228,7 @@ function drawNewOrder() {
       '<div class="card"><h3 class="sm">Оплата клиента</h3><div class="cpay">' +
         '<div><label for="noInv" title="Если пусто — равно доходу">Выставлено клиенту, ' + sign + '</label><input id="noInv" inputmode="decimal" value="' + val(s.client_invoice_amount) + '"></div>' +
         '<div><label for="noDue">Срок оплаты</label><input id="noDue" type="date" value="' + val(s.client_due_date) + '"></div></div></div>' +
-      '<div id="noWarn"></div>' +
+      '<div id="noVet"></div><div id="noWarn"></div>' +
       '<div class="side-acts"><button class="btn" id="noSave" type="button">Сохранить заказ</button><a class="btn ghost" href="#/orders" style="text-decoration:none;text-align:center">Отмена</a></div>' +
     '</aside></div></div>';
 
@@ -1168,6 +1247,10 @@ function drawNewOrder() {
   }
   num('noInv', 'client_invoice_amount');
   $('noDue').onchange = (e) => { s.client_due_date = e.target.value || null; };
+  if (vetReady) {
+    $('noExcise').onchange = (e) => { s.cargo_excise = e.target.value === '1'; updateNewOrderCalc(); };
+    num('noCargoVal', 'cargo_value_eur');
+  }
   $('noSvc').onchange = (e) => {
     if (e.target.checked) {
       // Первая строка расчёта — то, что уже вписано в доход и затраты.
@@ -1229,6 +1312,7 @@ function updateNewOrderCalc() {
     updatePayGroups('noPay', s.lines, res.rows, cur);
   } else paintLinePay('noQuick', [s.quick], res.rows);
   $('noInv').placeholder = String(Math.round(b.price * 100) / 100).replace('.', ',');
+  $('noVet').innerHTML = vetBoxHtml(x.lines.map((l) => l.carrier_id), !!s.cargo_excise, s.cargo_value_eur);
   const row = (label, n, bold) => '<tr><td' + (bold ? ' style="font-weight:600"' : '') + '>' + label + '</td><td class="r' + (bold ? ' ' + (n >= 0 ? 'pos' : 'neg') : '') + '">' + mEq(n) + '</td></tr>';
   $('noTot').innerHTML = row('Доход', b.price) + row('Затраты', b.cost) + row('Разница', b.diff) +
     row('Налог (' + pct(NEW_ORDER_TAX) + ' с разницы)', b.tax) + row('Чистая прибыль', b.profit, true) +
@@ -1261,6 +1345,10 @@ async function saveNewOrder() {
   }
   if (!s.services && bad(s.quick.payable_amount)) return fail('Проверьте поле «К оплате»: только цифры.');
   if (bad(s.client_invoice_amount)) return fail('Проверьте поле «Выставлено клиенту»: только цифры.');
+  if (bad(s.cargo_value_eur)) return fail('Проверьте поле «Стоимость груза»: только цифры.');
+  const blocked = newlyBlocked(newOrderDeal(s).lines.map((l) => l.carrier_id), null);
+  const reason = blocked.length ? await askOverrideReason(blocked) : null;
+  if (blocked.length && !reason) return;
   const btn = $('noSave'); btn.disabled = true; btn.textContent = 'Сохраняю...';
   let newId = null;
   try {
@@ -1271,7 +1359,8 @@ async function saveNewOrder() {
       start_date: s.start_date || null, end_date: s.end_date || null,
       currency: s.currency, fx_to_eur: s.currency === 'EUR' ? 1 : s.fx_to_eur,
       final_price: x.deal.final_price, qty_marks: x.deal.qty_marks || 0, qty_stickers: x.deal.qty_stickers || 0,
-      client_invoice_amount: s.client_invoice_amount == null ? null : s.client_invoice_amount, client_due_date: s.client_due_date || null
+      client_invoice_amount: s.client_invoice_amount == null ? null : s.client_invoice_amount, client_due_date: s.client_due_date || null,
+      ...(vetReady ? {cargo_excise: !!s.cargo_excise, cargo_value_eur: s.cargo_value_eur == null ? null : s.cargo_value_eur} : {})
     }).select('id').single();
     if (d.error) throw d.error;
     newId = d.data.id;
@@ -1284,6 +1373,7 @@ async function saveNewOrder() {
       await db.from('deals').delete().eq('id', newId);
       throw ins.error;
     }
+    await logOverrides(blocked, {deal_id: newId}, reason);
     const cl = await db.from('clients').select('id, name').order('name');
     if (!cl.error) clients = cl.data;
     await loadOrders();
@@ -1400,12 +1490,13 @@ async function renderCarriers() {
     '<button class="btn" id="newCarrierBtn" type="button">+ Новый контрагент</button></div>' +
     (fin.err ? '<div class="err">Данные загрузились не полностью: ' + esc(fin.err) + '</div>' : '') +
     '<div class="card">' + (!carriers.length ? '<div class="pad muted">Контрагентов пока нет</div>' :
-      '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Название</th><th>Тип</th><th>Валюта</th><th>ЕДРПОУ</th><th>Контакт</th><th class="r">Мы должны</th><th></th></tr></thead><tbody>' +
+      '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Название</th><th>Тип</th><th>Валюта</th><th>Код</th><th>Контакт</th>' + (vetReady ? '<th>Проверка СБ</th>' : '') + '<th class="r">Мы должны</th><th></th></tr></thead><tbody>' +
       carriers.map((c) => {
-        const g = debtOf.get(c.id);
-        return '<tr><td style="font-weight:500">' + esc(c.name) + (c.notes ? '<div class="sub">' + esc(c.notes) + '</div>' : '') + '</td>' +
+        const g = debtOf.get(c.id), showVet = vetReady && (isCarrierType(c) || vetOf(c) !== 'not_checked');
+        return '<tr><td style="font-weight:500">' + (showVet ? '<a href="#/sb/c/' + esc(c.id) + '">' + esc(c.name) + '</a>' : esc(c.name)) + (c.notes ? '<div class="sub">' + esc(c.notes) + '</div>' : '') + '</td>' +
           '<td><span class="kind k-trip">' + esc(CARRIER_TYPES[c.type] || c.type || '—') + '</span></td>' +
-          '<td>' + esc(c.currency || '—') + '</td><td>' + esc(c.edrpou || '—') + '</td><td>' + esc(c.contact || '—') + '</td>' +
+          '<td>' + esc(c.currency || '—') + '</td><td style="white-space:nowrap">' + esc([c.country, carrierCode(c)].filter(Boolean).join(' · ') || '—') + '</td><td>' + esc(c.contact || '—') + '</td>' +
+          (vetReady ? '<td>' + (showVet ? vetChip(vetOf(c)) : '<span class="muted">—</span>') + '</td>' : '') +
           '<td class="r">' + (g ? '<span class="' + (g.overdueEur > 0.005 ? 'neg' : '') + '">' + curSums(g.byCur) + '</span>' + (Object.keys(g.byCur).some((x) => x !== 'EUR') ? '<span class="eq">≈ ' + eur(g.totalEur) + '</span>' : '') : '<span class="muted">—</span>') + '</td>' +
           '<td class="r"><button class="btn ghost small" type="button" data-edit="' + esc(c.id) + '">Изменить</button></td></tr>';
       }).join('') + '</tbody></table></div>') + '</div>';
@@ -1423,8 +1514,11 @@ function openCarrierForm(c, onSaved, onCancel) {
     '<div><label for="cName">Название</label><input id="cName" value="' + g('name') + '" required></div>' +
     '<div class="f2"><div><label for="cType">Тип</label><select id="cType">' + opt(CARRIER_TYPES, edit ? c.type || 'carrier' : 'carrier') + '</select></div>' +
     '<div><label for="cCur">Валюта расчётов</label><select id="cCur">' + Object.keys(CUR_SIGN).map((k) => curOption(k, k === (edit ? c.currency || 'EUR' : 'EUR'))).join('') + '</select></div></div>' +
-    '<div class="f2"><div><label for="cCode">ЕДРПОУ</label><input id="cCode" value="' + g('edrpou') + '" inputmode="numeric"></div>' +
-    '<div><label for="cContact">Контакт</label><input id="cContact" value="' + g('contact') + '"></div></div>' +
+    (vetReady
+      ? '<div class="f2"><div><label for="cCountry">Страна</label><input id="cCountry" list="cCountryList" maxlength="2" value="' + (edit ? esc(c.country || '') : '') + '" placeholder="UA, PL, SK…" style="text-transform:uppercase"><datalist id="cCountryList">' + COUNTRIES.map((x) => '<option value="' + x + '">').join('') + '</datalist></div>' +
+        '<div><label for="cCode">Код (ЄДРПОУ / IČO / NIP / VAT)</label><input id="cCode" value="' + (edit ? esc(carrierCode(c)) : '') + '"></div></div>'
+      : '<div class="f2"><div><label for="cCode">ЕДРПОУ</label><input id="cCode" value="' + g('edrpou') + '" inputmode="numeric"></div><div></div></div>') +
+    '<div><label for="cContact">Контакт</label><input id="cContact" value="' + g('contact') + '"></div>' +
     '<div><label for="cNotes">Заметки</label><textarea id="cNotes" rows="3">' + g('notes') + '</textarea></div>' +
     '<div class="acts"><button class="btn ghost" type="button" id="carCancel">Отмена</button><button class="btn" type="submit" id="carSave">Сохранить</button></div></form></div>';
   $('cName').focus();
@@ -1434,6 +1528,12 @@ function openCarrierForm(c, onSaved, onCancel) {
     const box = $('carErr'); box.classList.add('hidden');
     const row = {name: $('cName').value.trim(), type: $('cType').value, currency: $('cCur').value,
       edrpou: $('cCode').value.trim() || null, contact: $('cContact').value.trim() || null, notes: $('cNotes').value.trim() || null};
+    if (vetReady) {
+      // Один код для всех стран; для Украины он же ЄДРПОУ (старое поле, его видят прежние экраны).
+      const country = $('cCountry').value.trim().toUpperCase() || null, code = $('cCode').value.replace(/\s+/g, '') || null;
+      if (country && !/^[A-Z]{2}$/.test(country)) { box.textContent = 'Страна — две латинские буквы, например UA или PL.'; box.classList.remove('hidden'); return; }
+      Object.assign(row, {country: country, reg_code: code, edrpou: (!country || country === 'UA') ? code : null});
+    }
     if (!row.name) { box.textContent = 'Укажите название.'; box.classList.remove('hidden'); return; }
     const btn = $('carSave'); btn.disabled = true; btn.textContent = 'Сохраняю...';
     const r = edit ? await db.from('carriers').update(row).eq('id', c.id).select('*').single()
@@ -1711,8 +1811,601 @@ function bindPayments() {
   });
 }
 
+/* ===== Перевозчики · СБ: проверки от агента СБ, страховки, документы, оценки рейсов ===== */
+const VET = {not_checked: ['Не проверен', 'gray'], in_progress: ['Проверка идёт', 'info'], approved: ['Допущен', ''], conditional: ['С условиями', 'warn'], blocked: ['Заблокирован', 'bad']};
+const LEVELS = {base: 'Базовый', standard: 'Стандартный', enhanced: 'Усиленный'};
+const LEVEL_N = {base: 1, standard: 2, enhanced: 3};
+const RESULTS = {pass: 'Пройдено', warn: 'Есть замечание', fail: 'Не пройдено', not_checked: 'Не проверено'};
+const POLICY_TYPES = {cmr_liability: 'Ответственность перевозчика (CMR)', cargo: 'Страховка груза'};
+const CDOC_TYPES = {registry_extract: 'Выписка из реестра', contract: 'Договор', vehicle_reg: 'Техпаспорт', license: 'Лицензия', permit: 'Разрешение', insurance: 'Полис', other: 'Другое'};
+const LAYERS = {1: 'Слой 1 · Стоп-факторы', 2: 'Слой 2 · Юридическая и финансовая проверка', 3: 'Слой 3 · Антифрод и операционка'};
+const COUNTRIES = ['UA', 'PL', 'SK', 'CZ', 'DE', 'LT', 'LV', 'EE', 'HU', 'RO', 'MD', 'NL', 'AT', 'BG'];
+const VET_SETUP_MSG = 'База ещё не обновлена для модуля СБ. Откройте Supabase → SQL Editor, вставьте содержимое файла sql/006_carrier_vetting.sql и нажмите Run. Потом обновите эту страницу.';
+let vetReady = false;   // true, когда в базе есть таблицы проверок (файл sql/006 запущен)
+
+const vetOf = (c) => (c && VET[c.vetting_status]) ? c.vetting_status : 'not_checked';
+const vetChip = (st) => '<span class="chip ' + VET[st][1] + '">' + VET[st][0] + '</span>';
+const carrierCode = (c) => (c && (c.reg_code || c.edrpou)) || '';
+const isCarrierType = (c) => !!c && (!c.type || c.type === 'carrier');
+const addDays = (isoStr, n) => { const p = String(isoStr).slice(0, 10).split('-').map(Number); return iso(new Date(p[0], p[1] - 1, p[2] + n)); };
+function daysUntil(d, today) {
+  const p = String(d).slice(0, 10).split('-').map(Number), t = String(today || todayIso()).split('-').map(Number);
+  return Math.round((Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(t[0], t[1] - 1, t[2])) / 86400000);
+}
+function expiryChip(d) {
+  if (!d) return '<span class="chip gray">Без срока</span>';
+  const n = daysUntil(d);
+  if (n < 0) return '<span class="chip bad">Истёк</span>';
+  if (n === 0) return '<span class="chip warn">Истекает сегодня</span>';
+  if (n <= 30) return '<span class="chip warn">Через ' + n + ' дн.</span>';
+  return '<span class="chip">Действует</span>';
+}
+
+// Уровень проверки под рейс: акциз или дороже €50k — усиленный; обычный до €10k и уже возил — базовый; иначе стандартный.
+function checkLevel(excise, band, known) {
+  if (excise || band === 'high') return 'enhanced';
+  if (band === 'low' && known) return 'base';
+  return 'standard';
+}
+const valueBand = (v) => (v == null || v === '' || !isFinite(Number(v))) ? null : Number(v) <= 10000 ? 'low' : Number(v) <= 50000 ? 'mid' : 'high';
+
+// Предупреждения по перевозчику в заказе. Чистая функция: [{kind: 'bad'|'warn'|'info', text}].
+function vetWarnings(c, excise, valueEur) {
+  if (!c) return [];
+  const st = vetOf(c), out = [];
+  if (st === 'blocked') return [{kind: 'bad', text: 'Заблокирован СБ' + (c.vetting_conditions ? ': ' + c.vetting_conditions : '') + '. Сохранить заказ можно только с указанием причины.'}];
+  if (!isCarrierType(c)) return [];
+  if (st === 'not_checked') return [{kind: 'info', text: 'Перевозчик не проверен — запусти агента СБ.'}];
+  if (st === 'in_progress') out.push({kind: 'info', text: 'Проверка СБ ещё идёт.'});
+  const big = Number(valueEur) > 50000;
+  if ((excise || big) && (LEVEL_N[c.vetting_max_level] || 0) < 3) {
+    out.push({kind: 'warn', text: (excise ? 'Груз акцизный' : 'Груз дороже €50 000') + ', а допуск ' +
+      (c.vetting_max_level ? 'только до уровня «' + LEVELS[c.vetting_max_level] + '»' : 'без уровня') + '. Нужна усиленная проверка.'});
+  }
+  if (st === 'conditional' && c.vetting_conditions) out.push({kind: 'warn', text: 'Условие допуска: ' + c.vetting_conditions});
+  return out;
+}
+// Блок «Проверка перевозчиков» в заказе: значок статуса и предупреждения по каждому перевозчику.
+function vetBoxHtml(ids, excise, valueEur) {
+  if (!vetReady) return '';
+  const list = Array.from(new Set((ids || []).filter(Boolean))).map((id) => carriers.find((c) => c.id === id)).filter((c) => c && (isCarrierType(c) || vetOf(c) === 'blocked'));
+  if (!list.length) return '';
+  return '<div class="card"><h3 class="sm">Проверка перевозчиков</h3><div class="pad" style="padding:12px 14px;gap:10px">' +
+    list.map((c) => '<div class="vetc"><div class="who"><a href="#/sb/c/' + esc(c.id) + '">' + esc(c.name) + '</a>' + vetChip(vetOf(c)) +
+      (c.vetting_max_level ? '<span class="muted" style="font-weight:400">до уровня «' + LEVELS[c.vetting_max_level] + '»</span>' : '') + '</div>' +
+      vetWarnings(c, excise, valueEur).map((w) => '<div class="' + (w.kind === 'bad' ? 'badbox' : w.kind === 'warn' ? 'warnbox' : 'infobox') + '">' + esc(w.text) + '</div>').join('') + '</div>').join('') +
+    '</div></div>';
+}
+// Заблокированные перевозчики, которых раньше в заказе не было: для них нужна причина.
+const newlyBlocked = (ids, saved) => Array.from(new Set((ids || []).filter(Boolean)))
+  .filter((id) => !(saved && saved.has(id))).map((id) => carriers.find((c) => c.id === id)).filter((c) => vetReady && vetOf(c) === 'blocked');
+function askOverrideReason(list) {
+  return new Promise((resolve) => {
+    $('modalRoot').innerHTML =
+      '<div class="overlay"><form class="modal" id="ovrForm" role="dialog" aria-label="Перевозчик заблокирован"><h2>Перевозчик заблокирован СБ</h2>' +
+      list.map((c) => '<div class="badbox"><strong>' + esc(c.name) + '</strong>' + (c.vetting_conditions ? ': ' + esc(c.vetting_conditions) : '') + '</div>').join('') +
+      '<div id="ovrErr" class="err hidden"></div>' +
+      '<div><label for="ovrReason">Почему всё равно работаем с ним</label><textarea id="ovrReason" rows="3" placeholder="Напр. согласовано с клиентом, груз застрахован отдельно"></textarea><div class="sub">Причина сохранится в журнал.</div></div>' +
+      '<div class="acts"><button class="btn ghost" type="button" id="ovrCancel">Отмена</button><button class="btn" type="submit">Сохранить с причиной</button></div></form></div>';
+    $('ovrReason').focus();
+    $('ovrCancel').onclick = () => { $('modalRoot').innerHTML = ''; resolve(null); };
+    $('ovrForm').onsubmit = (e) => {
+      e.preventDefault();
+      const v = $('ovrReason').value.trim();
+      if (!v) { $('ovrErr').textContent = 'Напишите причину.'; $('ovrErr').classList.remove('hidden'); return; }
+      $('modalRoot').innerHTML = ''; resolve(v);
+    };
+  });
+}
+async function logOverrides(list, ref, reason) {
+  if (!list.length || !reason) return;
+  const r = await db.from('carrier_overrides').insert(list.map((c) => Object.assign({carrier_id: c.id, reason: reason}, ref)));
+  if (r.error) alert('Заказ сохранён, но причину не удалось записать в журнал: ' + r.error.message);
+}
+
+// Данные раздела: перевозчики, последние проверки, страховки, документы, заказы и оценки.
+let sb = {checks: [], ins: [], docs: [], lines: [], deals: [], ratings: [], err: null};
+async function loadSb() {
+  const [k, ck, ins, dc, ln, dl, rt] = await Promise.all([
+    db.from('carriers').select('*').order('name'),
+    db.from('carrier_checks').select('id, carrier_id, checked_at, level, verdict, score, conditions, red_flags, created_at').order('checked_at', {ascending: false}).order('created_at', {ascending: false}),
+    db.from('carrier_insurance').select('*'),
+    db.from('carrier_documents').select('*'),
+    db.from('deal_lines').select('deal_id, carrier_id').not('carrier_id', 'is', null),
+    db.from('deals').select('id, title, status, start_date'),
+    db.from('trip_ratings').select('*')
+  ]);
+  if (!k.error) carriers = k.data;
+  vetReady = !ck.error;
+  const e = k.error || ins.error || dc.error || ln.error || dl.error || rt.error;
+  sb = {checks: ck.data || [], ins: ins.data || [], docs: dc.data || [], lines: ln.data || [], deals: dl.data || [], ratings: rt.data || [], err: e ? e.message : null};
+}
+// Заказы перевозчика (без черновиков): старые рейсы и новые заказы, где он стоит в строках.
+function carrierOrders(cid) {
+  const out = [];
+  trips.filter((t) => t.carrier_id === cid && normStatus(t.status) !== 'draft').forEach((t) => out.push({kind: 'trip', id: t.id,
+    title: 'Рейс ' + fdate(t.loading_date) + (t.clients ? ' · ' + t.clients.name : '') + (t.city ? ' · ' + t.city : ''), date: t.loading_date, cargo: t.cargo}));
+  const ids = new Set(sb.lines.filter((l) => l.carrier_id === cid).map((l) => l.deal_id));
+  sb.deals.filter((d) => ids.has(d.id) && normStatus(d.status) !== 'draft').forEach((d) => out.push({kind: 'deal', id: d.id, title: d.title || 'Без названия', date: d.start_date}));
+  return out.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+}
+// Полисы и документы со сроком до указанной даты (просроченные тоже), ближайшие сверху.
+function expiringDocs(ins, docs, until) {
+  const out = [];
+  (ins || []).forEach((i) => { if (i.valid_until && String(i.valid_until).slice(0, 10) <= until) out.push({carrier_id: i.carrier_id, title: 'Полис ' + (i.insurer || '') + (POLICY_TYPES[i.policy_type] ? ' · ' + POLICY_TYPES[i.policy_type] : ''), date: i.valid_until}); });
+  (docs || []).forEach((d) => { if (d.valid_until && String(d.valid_until).slice(0, 10) <= until) out.push({carrier_id: d.carrier_id, title: d.title || CDOC_TYPES[d.doc_type] || d.doc_type || 'Документ', date: d.valid_until}); });
+  return out.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+const sbTopButtons = () => '<div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn ghost" href="#/sb/check" style="text-decoration:none">Проверка под рейс</a>' +
+  '<button class="btn" type="button" data-import>Импорт проверки</button></div>';
+const bindImport = () => document.querySelectorAll('[data-import]').forEach((b) => { b.onclick = () => openImportModal(); });
+
+/* ----- Реестр ----- */
+let sbFilter = {status: '', country: '', q: ''};
+async function renderSb() {
+  setNav('sb');
+  $('view').innerHTML = '<div class="muted">Загружаю перевозчиков...</div>';
+  await loadSb();
+  if (location.hash !== '#/sb') return;
+  const head = '<div class="top"><div><h1>Перевозчики · СБ</h1><div class="sub">Проверки делает агент СБ в Claude, сюда загружается его результат.</div></div>' + (vetReady ? sbTopButtons() : '') + '</div>';
+  if (!vetReady) { $('view').innerHTML = head + '<div class="warnbox" style="font-size:14px">' + VET_SETUP_MSG + '</div>'; return; }
+  const list = carriers.filter((c) => isCarrierType(c) || vetOf(c) !== 'not_checked');
+  const exp = expiringDocs(sb.ins, sb.docs, addDays(todayIso(), 30));
+  const last = new Map(); sb.checks.forEach((k) => { if (!last.has(k.carrier_id)) last.set(k.carrier_id, k); });
+  const cnt = (st) => list.filter((c) => vetOf(c) === st).length;
+  const metric = (l, v, cls) => '<div class="metric"><div class="l">' + l + '</div><div class="v' + (cls ? ' ' + cls : '') + '">' + v + '</div></div>';
+  const alerts = [];
+  list.filter((c) => vetOf(c) === 'blocked').forEach((c) => {
+    const k = last.get(c.id), flags = k && k.red_flags && k.red_flags.length ? k.red_flags.join('; ') : '';
+    alerts.push(['bad', 'Стоп', c, flags || c.vetting_conditions || 'Стоп-фактор по проверке СБ']);
+  });
+  list.filter((c) => vetOf(c) === 'conditional').forEach((c) => alerts.push(['warn', 'Условие', c, c.vetting_conditions || 'Допущен с условиями']));
+  exp.forEach((x) => { const c = carriers.find((y) => y.id === x.carrier_id); if (c) alerts.push(['info', 'Срок', c, x.title + ' — ' + (daysUntil(x.date) < 0 ? 'истёк ' : 'до ') + fdate(x.date)]); });
+  const countries = Array.from(new Set(list.map((c) => c.country).filter(Boolean))).sort();
+  const opt = (v, label, cur) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(label) + '</option>';
+  $('view').innerHTML = head +
+    (sb.err ? '<div class="err">Данные загрузились не полностью: ' + esc(sb.err) + '</div>' : '') +
+    '<div class="metrics">' + metric('Всего', list.length) + metric('Допущены', cnt('approved'), 'pos') +
+      metric('С условиями', cnt('conditional')) + metric('Заблокированы', cnt('blocked'), cnt('blocked') ? 'neg' : '') +
+      metric('Документы истекают ≤30 дн.', exp.length) + '</div>' +
+    (alerts.length ? '<div class="card"><h3>Требует внимания</h3>' + alerts.map(([cls, tag, c, text]) =>
+      '<div class="alert"><span class="chip ' + cls + '">' + tag + '</span><div class="grow"><div style="font-weight:600">' + esc(c.name) + '</div><div class="sub" style="font-size:14px">' + esc(text) + '</div></div>' +
+      '<a href="#/sb/c/' + esc(c.id) + '" style="white-space:nowrap">Открыть →</a></div>').join('') + '</div>' : '') +
+    '<div class="filters">' +
+      '<div><label for="sbSt">Статус</label><select id="sbSt">' + opt('', 'Все статусы', sbFilter.status) + Object.entries(VET).map(([k, v]) => opt(k, v[0], sbFilter.status)).join('') + '</select></div>' +
+      '<div><label for="sbCo">Страна</label><select id="sbCo">' + opt('', 'Все страны', sbFilter.country) + countries.map((x) => opt(x, x, sbFilter.country)).join('') + '</select></div>' +
+      '<div style="flex:1 1 260px"><label for="sbQ">Поиск</label><input id="sbQ" type="search" value="' + esc(sbFilter.q) + '" placeholder="Название, код, номер авто" style="padding:8px 10px;font-size:13px"></div>' +
+      '<div class="cnt muted" id="sbCnt"></div></div>' +
+    '<div class="card" id="sbTable"></div>';
+  const draw = () => {
+    const q = sbFilter.q.trim().toLowerCase();
+    const rows = list.filter((c) => (!sbFilter.status || vetOf(c) === sbFilter.status) && (!sbFilter.country || c.country === sbFilter.country) &&
+      (!q || [c.name, carrierCode(c), c.director].concat(trips.filter((t) => t.carrier_id === c.id).map((t) => t.vehicle)).join(' ').toLowerCase().includes(q)));
+    $('sbCnt').textContent = 'Найдено: ' + rows.length;
+    $('sbTable').innerHTML = !rows.length ? '<div class="pad muted">Никого не нашлось. Перевозчик появится здесь после импорта проверки или если создать его в «Контрагентах» с типом «Перевозчик».</div>' :
+      '<div class="scroll"><table class="orders"><thead><tr><th>Перевозчик</th><th>Страна / код</th><th>Статус</th><th class="r">Балл</th><th>Допуск до уровня</th><th class="r">Заказов</th><th>Проверен</th></tr></thead><tbody>' +
+      rows.map((c) => '<tr data-href="#/sb/c/' + esc(c.id) + '"><td><a href="#/sb/c/' + esc(c.id) + '" style="font-weight:500">' + esc(c.name) + '</a>' + (c.director ? '<div class="sub">' + esc(c.director) + '</div>' : '') + '</td>' +
+        '<td style="white-space:nowrap">' + esc([c.country, carrierCode(c)].filter(Boolean).join(' · ') || '—') + '</td>' +
+        '<td>' + vetChip(vetOf(c)) + '</td><td class="r" style="font-weight:600">' + (c.vetting_score != null ? esc(c.vetting_score) : '—') + '</td>' +
+        '<td>' + (LEVELS[c.vetting_max_level] || '—') + '</td><td class="r">' + carrierOrders(c.id).length + '</td>' +
+        '<td style="white-space:nowrap">' + fdate(c.last_checked_at) + '</td></tr>').join('') + '</tbody></table></div>';
+    bindOrderRows($('sbTable'));
+  };
+  $('sbSt').onchange = (e) => { sbFilter.status = e.target.value; draw(); };
+  $('sbCo').onchange = (e) => { sbFilter.country = e.target.value; draw(); };
+  $('sbQ').oninput = (e) => { sbFilter.q = e.target.value; draw(); };
+  draw();
+  bindImport();
+}
+
+/* ----- Карточка перевозчика ----- */
+const ratingMarks = (r) => '<div class="marks"><span>Вовремя: <b>' + (r.on_time == null ? '—' : r.on_time ? 'да' : 'нет') + '</b></span>' +
+  '<span>Документы: <b>' + (r.docs_score || '—') + '/5</b></span><span>Связь: <b>' + (r.comm_score || '—') + '/5</b></span>' +
+  '<span>Претензии: <b>' + esc(r.claims || 'нет') + '</b></span></div>';
+async function renderSbCard(id) {
+  setNav('sb');
+  const hash = location.hash;
+  $('view').innerHTML = '<div class="muted">Загружаю карточку...</div>';
+  await loadSb();
+  const ck = vetReady ? await db.from('carrier_checks').select('*, carrier_check_items(*)').eq('carrier_id', id).order('checked_at', {ascending: false}).order('created_at', {ascending: false}) : {data: []};
+  if (location.hash !== hash) return;
+  const back = '<div><a href="#/sb" style="font-size:14px;text-decoration:none">← Все перевозчики</a></div>';
+  const c = carriers.find((x) => x.id === id);
+  if (!vetReady) { $('view').innerHTML = back + '<div class="warnbox" style="font-size:14px">' + VET_SETUP_MSG + '</div>'; return; }
+  if (!c) { $('view').innerHTML = back + '<div class="err">Перевозчик не найден</div>'; return; }
+  const checks = ck.data || [], k = checks[0], st = vetOf(c);
+  const ins = sb.ins.filter((x) => x.carrier_id === id), docs = sb.docs.filter((x) => x.carrier_id === id);
+  const ords = carrierOrders(id), rates = sb.ratings.filter((r) => r.carrier_id === id);
+  const rateOf = (o) => rates.find((r) => (o.kind === 'trip' ? r.trip_id : r.deal_id) === o.id);
+  const items = k ? (k.carrier_check_items || []) : [];
+  const layer = (n) => {
+    const its = items.filter((x) => x.layer === n);
+    if (!its.length) return '';
+    const ok = its.filter((x) => x.result === 'pass').length;
+    return '<div class="card"><h3>' + LAYERS[n] + ' <span class="gsum">' + ok + ' из ' + its.length + ' пройдено</span></h3>' +
+      its.map((x) => '<div class="vi"><span class="dot ' + esc(x.result) + '" title="' + esc(RESULTS[x.result] || '') + '"></span><div><div style="font-weight:500">' + esc(x.title) + '</div>' +
+        (x.detail ? '<div class="sub">' + esc(x.detail) + '</div>' : '') + '</div>' + (x.source ? '<span class="src">' + esc(x.source) + '</span>' : '') + '</div>').join('') + '</div>';
+  };
+  const listBox = (cls, title, arr) => arr && arr.length ? '<div class="' + cls + '"><strong>' + title + '</strong><ul class="plain">' + arr.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></div>' : '';
+  const kv = (label, v) => v ? '<span><span class="muted">' + label + '</span> ' + esc(v) + '</span>' : '';
+  $('view').innerHTML = back +
+    '<div class="top"><div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px"><h1>' + esc(c.name) + '</h1>' + vetChip(st) + '</div>' +
+      '<div class="sub" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-size:14px">' + kv('Страна', c.country) + kv('Код', carrierCode(c)) + kv('Директор', c.director) + kv('IBAN', c.iban) + kv('Контакт', c.contact) +
+        kv('Последняя проверка', c.last_checked_at ? fdate(c.last_checked_at) : 'не было') + '</div></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn ghost" href="#/sb/check/' + esc(id) + '" style="text-decoration:none">Проверка под рейс</a>' +
+        '<button class="btn ghost" type="button" id="sbEdit">Изменить</button><button class="btn" type="button" data-import>Импорт проверки</button></div></div>' +
+    (st === 'conditional' && c.vetting_conditions ? '<div class="warnbox" style="font-size:14px"><strong>Условие допуска:</strong> ' + esc(c.vetting_conditions) + '</div>' : '') +
+    (st === 'blocked' ? '<div class="badbox" style="font-size:14px"><strong>Заблокирован.</strong> ' + esc(c.vetting_conditions || 'Работать нельзя: есть стоп-фактор.') + '</div>' : '') +
+    (st === 'not_checked' ? '<div class="infobox" style="font-size:14px">Перевозчик ещё не проверен. Откройте «Проверка под рейс», скопируйте задание для агента СБ, а его ответ загрузите кнопкой «Импорт проверки».</div>' : '') +
+    '<div class="metrics">' +
+      '<div class="metric"><div class="l">Общий балл</div><div class="v">' + (c.vetting_score != null ? esc(c.vetting_score) + '<span class="muted" style="font-size:16px;font-weight:500">/10</span>' : '—') + '</div></div>' +
+      '<div class="metric"><div class="l">Допуск до уровня</div><div class="v" style="font-size:22px">' + (LEVELS[c.vetting_max_level] || '—') + '</div></div>' +
+      '<div class="metric"><div class="l">Заказов с нами</div><div class="v">' + ords.length + '</div></div>' +
+      '<div class="metric"><div class="l">Проверок</div><div class="v">' + checks.length + '</div></div></div>' +
+    '<div class="cols"><div class="a">' +
+      (k ? '<div class="card"><h3>Последняя проверка · ' + fdate(k.checked_at) + '</h3><div class="pad">' +
+          '<div style="display:flex;flex-wrap:wrap;gap:8px 18px;font-size:14px">' + kv('Уровень', LEVELS[k.level]) + kv('Вердикт', VET[k.verdict] ? VET[k.verdict][0] : k.verdict) + kv('Балл', k.score != null ? String(k.score) : '') +
+          (k.card_url ? '<a href="' + esc(k.card_url) + '" target="_blank" rel="noopener noreferrer">Карточка в Google Drive</a>' : '') + '</div>' +
+          (k.trip_context ? '<div class="sub" style="font-size:14px">Под рейс: ' + esc(k.trip_context) + '</div>' : '') +
+          listBox('badbox', 'Стоп-факторы', k.red_flags) + listBox('warnbox', 'Не хватает', k.missing) + listBox('infobox', 'Сделать до погрузки', k.tasks) +
+        '</div></div>' + layer(1) + layer(2) + layer(3)
+        : '<div class="card"><h3>Проверка</h3><div class="pad muted">Проверок пока нет.</div></div>') +
+      '<div class="card"><h3>История рейсов с нами</h3>' + (!ords.length ? '<div class="pad muted">Заказов с этим перевозчиком пока нет.</div>' :
+        ords.map((o) => { const r = rateOf(o); return '<div class="row"><div style="min-width:0"><a href="' + (o.kind === 'trip' ? '#/trip/' : '#/deal/') + esc(o.id) + '" style="font-weight:500">' + esc(o.title) + '</a>' +
+          (r ? ratingMarks(r) : '<div class="sub">Без оценки</div>') + '</div>' + (r ? '' : '<button class="btn ghost small" type="button" data-rate="' + esc(o.kind + ':' + o.id) + '">Оценить рейс</button>') + '</div>'; }).join('')) +
+        '<div class="pad sub" style="border-top:1px solid var(--line)">Оценка ставится после выгрузки — это наша собственная база, которой нет ни в одном реестре.</div></div>' +
+    '</div><div class="b">' +
+      '<div class="card"><h3>Страховка</h3>' + (!ins.length ? '<div class="pad muted">Данных о страховке нет.</div>' : ins.map((i) =>
+        '<div class="pad" style="border-top:1px solid var(--line);gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div style="font-weight:600">' + esc(i.insurer || 'Страховщик не указан') + '</div>' + expiryChip(i.valid_until) + '</div>' +
+          '<div class="sub">' + esc(POLICY_TYPES[i.policy_type] || i.policy_type || '') + '</div>' +
+          '<div style="font-size:13px">Лимит: <b>' + (i.limit_amount != null ? money(Number(i.limit_amount), i.currency || 'EUR') : 'не указан') + '</b></div>' +
+          (i.franchise_note ? '<div style="font-size:13px">Франшиза: <b>' + esc(i.franchise_note) + '</b></div>' : '') +
+          (i.exclusions && i.exclusions.length ? '<div style="font-size:13px">Исключения: <span class="neg" style="font-weight:500">' + esc(i.exclusions.join(', ')) + '</span></div>' : '') +
+          '<div style="font-size:13px">Подтверждено страховой: ' + (i.confirmed_by_insurer ? '<span class="pos">да</span>' : '<span class="neg">нет</span>') + '</div>' +
+          (i.valid_until ? '<div class="sub">Действует до ' + fdate(i.valid_until) + '</div>' : '') +
+          (i.drive_url ? '<a href="' + esc(i.drive_url) + '" target="_blank" rel="noopener noreferrer" style="font-size:13px">Открыть полис</a>' : '') + '</div>').join('')) + '</div>' +
+      '<div class="card"><h3>Документы и сроки</h3>' + (!docs.length ? '<div class="pad muted">Документов пока нет.</div>' : docs.map((d) =>
+        '<div class="row"><div style="min-width:0"><div style="font-weight:500">' + esc(d.title || CDOC_TYPES[d.doc_type] || d.doc_type || 'Документ') + '</div><div class="sub">' + esc(CDOC_TYPES[d.doc_type] || d.doc_type || '') + (d.valid_until ? ' · до ' + fdate(d.valid_until) : '') + '</div></div>' +
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' + expiryChip(d.valid_until) + (d.drive_url ? '<a href="' + esc(d.drive_url) + '" target="_blank" rel="noopener noreferrer">Открыть</a>' : '') +
+          '<button class="x" type="button" data-deldoc="' + esc(d.id) + '" aria-label="Удалить документ" title="Удалить документ" style="border:0;background:none;color:var(--muted);font-size:18px;cursor:pointer">×</button></div></div>').join('')) +
+        '<form id="cdocForm" class="pad" style="border-top:1px solid var(--line)"><div id="cdocErr" class="err hidden"></div>' +
+          '<div class="f2"><div><label for="cdType">Тип</label><select id="cdType">' + Object.entries(CDOC_TYPES).map(([k2, v]) => '<option value="' + k2 + '">' + v + '</option>').join('') + '</select></div>' +
+          '<div><label for="cdUntil">Действует до</label><input id="cdUntil" type="date"></div></div>' +
+          '<div><label for="cdTitle">Название</label><input id="cdTitle" placeholder="Напр. Ліцензія на перевезення"></div>' +
+          '<div><label for="cdUrl">Ссылка на файл в Google Drive</label><input id="cdUrl" type="url" placeholder="https://drive.google.com/... (необязательно)"></div>' +
+          '<div><button class="btn small" type="submit">Добавить документ</button></div></form></div>' +
+      (checks.length ? '<div class="card"><h3>История проверок</h3>' + checks.map((x) => '<div class="row"><div><div style="font-weight:500">' + fdate(x.checked_at) + ' · ' + (LEVELS[x.level] || '—') + '</div>' +
+        (x.trip_context ? '<div class="sub">' + esc(x.trip_context) + '</div>' : '') + '</div><div style="display:flex;gap:8px;align-items:center">' +
+        (x.score != null ? '<strong>' + esc(x.score) + '</strong>' : '') + (VET[x.verdict] ? vetChip(x.verdict) : '') +
+        (x.card_url ? '<a href="' + esc(x.card_url) + '" target="_blank" rel="noopener noreferrer">Drive</a>' : '') + '</div></div>').join('') + '</div>' : '') +
+    '</div></div>';
+  bindImport();
+  $('sbEdit').onclick = () => openCarrierForm(c, () => renderSbCard(id));
+  document.querySelectorAll('[data-rate]').forEach((b) => {
+    const [kind, oid] = b.getAttribute('data-rate').split(':');
+    b.onclick = () => openRatingModal(id, ords.find((o) => o.kind === kind && o.id === oid), () => renderSbCard(id));
+  });
+  document.querySelectorAll('[data-deldoc]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('Удалить этот документ из карточки? Файл в Google Drive останется.')) return;
+      const r = await db.from('carrier_documents').delete().eq('id', b.getAttribute('data-deldoc'));
+      if (r.error) { alert('Не удалось удалить: ' + r.error.message); return; }
+      renderSbCard(id);
+    };
+  });
+  $('cdocForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const box = $('cdocErr'); box.classList.add('hidden');
+    const url = $('cdUrl').value.trim(), type = $('cdType').value;
+    if (url && !/^https:\/\//i.test(url)) { box.textContent = 'Ссылка должна начинаться с https://'; box.classList.remove('hidden'); return; }
+    const r = await db.from('carrier_documents').insert({carrier_id: id, doc_type: type, title: $('cdTitle').value.trim() || CDOC_TYPES[type], valid_until: $('cdUntil').value || null, drive_url: url || null});
+    if (r.error) { box.textContent = 'Не удалось добавить: ' + r.error.message; box.classList.remove('hidden'); return; }
+    renderSbCard(id);
+  };
+}
+
+/* ----- Оценка рейса ----- */
+function openRatingModal(carrierId, order, onDone, offered) {
+  const c = carriers.find((x) => x.id === carrierId);
+  const sel = (id, label) => '<div><label for="' + id + '">' + label + '</label><select id="' + id + '">' + [5, 4, 3, 2, 1].map((n) => '<option value="' + n + '">' + n + '</option>').join('') + '</select></div>';
+  $('modalRoot').innerHTML =
+    '<div class="overlay"><form class="modal" id="rateForm" role="dialog" aria-label="Оценка рейса"><h2>Оценить рейс</h2>' +
+    '<div class="sub">' + esc(c ? c.name : '') + (order ? ' · ' + esc(order.title || '') : '') + (offered ? '<br>Заказ завершён — как отработал перевозчик?' : '') + '</div><div id="rateErr" class="err hidden"></div>' +
+    '<div class="f2"><div><label for="rOnTime">Приехал вовремя</label><select id="rOnTime"><option value="1">Да</option><option value="0">Нет</option></select></div>' + sel('rDocs', 'Документы, 1–5') + '</div>' +
+    '<div class="f2">' + sel('rComm', 'Связь, 1–5') + '<div><label for="rClaims">Претензии</label><input id="rClaims" placeholder="Нет"></div></div>' +
+    '<div class="acts"><button class="btn ghost" type="button" id="rateCancel">' + (offered ? 'Пропустить' : 'Отмена') + '</button><button class="btn" type="submit" id="rateSave">Сохранить оценку</button></div></form></div>';
+  const close = () => { $('modalRoot').innerHTML = ''; };
+  $('rateCancel').onclick = () => { close(); if (offered && onDone) onDone(); };
+  $('rateForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = $('rateSave'); btn.disabled = true; btn.textContent = 'Сохраняю...';
+    const row = {carrier_id: carrierId, trip_id: order && order.kind === 'trip' ? order.id : null, deal_id: order && order.kind === 'deal' ? order.id : null,
+      on_time: $('rOnTime').value === '1', docs_score: Number($('rDocs').value), comm_score: Number($('rComm').value), claims: $('rClaims').value.trim() || null};
+    const r = await db.from('trip_ratings').insert(row);
+    if (r.error) { $('rateErr').textContent = 'Не удалось сохранить: ' + r.error.message; $('rateErr').classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Сохранить оценку'; return; }
+    close();
+    if (onDone) onDone();
+  };
+}
+// После завершения заказа: предложить оценить каждого перевозчика, которого ещё не оценили по этому заказу.
+async function offerRatings(kind, id, title, ids) {
+  if (!vetReady) return;
+  const list = Array.from(new Set((ids || []).filter(Boolean))).map((x) => carriers.find((c) => c.id === x)).filter(isCarrierType);
+  if (!list.length) return;
+  const r = await db.from('trip_ratings').select('carrier_id').eq(kind === 'trip' ? 'trip_id' : 'deal_id', id);
+  if (r.error) return;
+  const rated = new Set(r.data.map((x) => x.carrier_id)), todo = list.filter((c) => !rated.has(c.id));
+  const next = () => { const c = todo.shift(); if (c) openRatingModal(c.id, {kind: kind, id: id, title: title}, next, true); };
+  next();
+}
+
+/* ----- Проверка под рейс ----- */
+const CHECK_ITEMS = [
+  [1, 'Стоп-факторы', 'ЄДР / реестр ЕС, санкции (РНБО, ЕС, OFAC, UK), IBAN = сторона договора'],
+  [1, 'Контакты подтверждены', 'Обратный звонок по номеру из реестра, сайта или биржи — не из письма'],
+  [1, 'Машина и водитель', 'Техпаспорт (собственник или аренда), права, паспорт — только сверить, сканы в CRM не храним'],
+  [2, 'Суды, долги, исполнительные производства', 'ЄДРСР, АСВП, налоговый долг; в ЕС — Finstat / KRS / ORSR'],
+  [2, 'Финансы', 'Выручка и прибыль против стоимости груза'],
+  [2, 'Биржи', 'Lardi-Trans / Trans.eu / Timocom: рейтинг, претензии, стаж'],
+  [2, 'Полис подтвердила страховая', 'Запрос по контактам с официального сайта страховщика'],
+  [2, 'Фото на погрузке', 'Номера тягача и прицепа совпадают с заявкой'],
+  [3, 'Лимит полиса не ниже стоимости груза', 'Иначе — своя страховка груза или заявленная стоимость в CMR'],
+  [3, 'Исключения полиса', 'Алкоголь / акциз, кража со стоянки, военные риски, франшиза'],
+  [3, 'GPS-трекинг на весь рейс', 'Отказ дать трекинг — красный флаг'],
+  [3, 'Оплата после выгрузки', 'Только после оригиналов CMR, никаких предоплат']
+];
+const LEVEL_WHY = {
+  base: 'Обычный груз до €10 000 и перевозчик уже возил с нами: стоп-факторы и быстрая сверка.',
+  standard: 'Новый перевозчик или груз средней стоимости: все пункты слоёв 1 и 2.',
+  enhanced: 'Акциз или груз дороже €50 000: полис с лимитом не ниже стоимости груза, GPS, оплата только после выгрузки.'
+};
+let sbCheck = {carrier_id: '', context: '', cargo: 'regular', value: 'mid', known: null, done: {}};
+async function renderSbCheck(id) {
+  setNav('sb');
+  const hash = location.hash;
+  $('view').innerHTML = '<div class="muted">Открываю проверку...</div>';
+  await loadSb();
+  if (location.hash !== hash) return;
+  if (id && id !== sbCheck.carrier_id) Object.assign(sbCheck, {carrier_id: id, known: null, done: {}});
+  drawSbCheck();
+}
+function drawSbCheck() {
+  const s = sbCheck, c = carriers.find((x) => x.id === s.carrier_id);
+  const head = '<div><a href="#/sb" style="font-size:14px;text-decoration:none">← Все перевозчики</a></div>' +
+    '<div class="top"><div><h1>Проверка под рейс</h1><div class="sub">Глубина проверки зависит от груза. Выберите параметры — список пересчитается.</div></div>' + (vetReady ? sbTopButtons().replace(/<a [^>]*>Проверка под рейс<\/a>/, '') : '') + '</div>';
+  if (!vetReady) { $('view').innerHTML = head + '<div class="warnbox" style="font-size:14px">' + VET_SETUP_MSG + '</div>'; return; }
+  const nOrders = c ? carrierOrders(c.id).length : 0;
+  const known = s.known != null ? s.known : nOrders > 0;
+  const lvl = checkLevel(s.cargo === 'excise', s.value, known);
+  const items = CHECK_ITEMS.map((x, i) => ({i: i, l: x[0], t: x[1], d: x[2]})).filter((x) => x.l <= LEVEL_N[lvl]);
+  const done = items.filter((x) => s.done[x.i]).length;
+  const seg = (key, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, label]) => '<button type="button" data-k="' + key + '" data-v="' + v + '" aria-pressed="' + (String(cur) === v) + '">' + label + '</button>').join('') + '</div>';
+  const list = carriers.filter((x) => isCarrierType(x) || vetOf(x) !== 'not_checked');
+  const tag = {1: ['Базовый', ''], 2: ['Стандарт', 'info'], 3: ['Усиленный', 'bad']};
+  const curLvl = c ? (LEVEL_N[c.vetting_max_level] || 0) : 0;
+  $('view').innerHTML = head +
+    '<div class="cols"><div class="a">' +
+      '<div class="card"><div class="pad" style="gap:18px">' +
+        '<div class="f2"><div><label for="ckCarrier">Перевозчик</label><select id="ckCarrier"><option value="">— выберите —</option>' +
+          list.map((x) => '<option value="' + esc(x.id) + '"' + (x.id === s.carrier_id ? ' selected' : '') + '>' + esc(x.name) + (carrierCode(x) ? ' · ' + esc(carrierCode(x)) : '') + '</option>').join('') + '</select>' +
+          (c ? '<div class="vetc" style="margin-top:8px"><div class="who">' + vetChip(vetOf(c)) + (c.vetting_max_level ? '<span class="muted" style="font-weight:400">допуск до уровня «' + LEVELS[c.vetting_max_level] + '»</span>' : '') +
+            '<a href="#/sb/c/' + esc(c.id) + '" style="font-weight:400">карточка</a></div></div>' : '<div class="sub" style="margin-top:6px">Нового перевозчика не нужно создавать заранее: он появится сам при импорте проверки.</div>') + '</div>' +
+        '<div><label for="ckCtx">Груз и маршрут</label><input id="ckCtx" value="' + esc(s.context) + '" placeholder="Напр. Ром, 1 палета, Варшава → Киев"></div></div>' +
+        '<div class="optrow"><span class="l">Тип груза</span>' + seg('cargo', s.cargo, [['regular', 'Обычный'], ['excise', 'Акцизный (алкоголь)']]) + '</div>' +
+        '<div class="optrow"><span class="l">Стоимость груза</span>' + seg('value', s.value, [['low', 'до €10 000'], ['mid', '€10–50 000'], ['high', 'больше €50 000']]) + '</div>' +
+        '<div class="optrow"><span class="l">Перевозчик' + (c ? ' (по истории: ' + (nOrders ? 'заказов с нами — ' + nOrders : 'с нами ещё не возил') + ')' : '') + '</span>' + seg('known', known ? '1' : '0', [['0', 'Новый'], ['1', 'Уже возил с нами']]) + '</div>' +
+      '</div></div>' +
+      '<div class="card"><h3>Что нужно проверить <span class="gsum">выполнено ' + done + ' из ' + items.length + '</span></h3>' +
+        items.map((x) => '<label class="chk"><input type="checkbox" data-done="' + x.i + '"' + (s.done[x.i] ? ' checked' : '') + '><span class="grow"><span style="font-weight:500;display:block">' + esc(x.t) + '</span><span class="sub">' + esc(x.d) + '</span></span>' +
+          '<span class="chip ' + tag[x.l][1] + '">' + tag[x.l][0] + '</span></label>').join('') +
+        '<div class="pad sub" style="border-top:1px solid var(--line)">Отметки — памятка на этом экране, в базу они не сохраняются. Результат проверки сохраняется через «Импорт проверки».</div></div>' +
+    '</div><div class="b">' +
+      '<div class="lvlbox lvl-' + lvl + '"><span style="font-size:13px;font-weight:600">Уровень проверки</span><span class="n">' + LEVELS[lvl] + '</span><span class="why">' + LEVEL_WHY[lvl] + '</span></div>' +
+      (c && vetOf(c) === 'blocked' ? '<div class="badbox" style="font-size:14px">Перевозчик заблокирован СБ. Работать с ним нельзя без веской причины.</div>' :
+        c && curLvl >= LEVEL_N[lvl] ? '<div class="okbox">Уже есть допуск до уровня «' + LEVELS[c.vetting_max_level] + '» — новая проверка не обязательна.</div>' :
+        c ? '<div class="warnbox" style="font-size:13px">Текущего допуска не хватает' + (c.vetting_max_level ? ' (сейчас до уровня «' + LEVELS[c.vetting_max_level] + '»)' : '') + ' — нужна проверка агентом СБ.</div>' : '') +
+      '<div class="card"><h3>Как провести проверку</h3><div class="pad" style="font-size:14px;line-height:1.5">' +
+        '<div><b>1.</b> Скопируйте задание и вставьте его агенту СБ в Claude.</div><div><b>2.</b> Агент вернёт результат в виде JSON.</div><div><b>3.</b> Нажмите «Импорт проверки» и вставьте этот JSON.</div>' +
+        '<button class="btn" type="button" id="ckTask">Скопировать задание для агента СБ</button><button class="btn ghost" type="button" data-import>Импорт проверки</button></div></div>' +
+    '</div></div>';
+  $('ckCarrier').onchange = (e) => { Object.assign(s, {carrier_id: e.target.value, known: null}); drawSbCheck(); };
+  $('ckCtx').oninput = (e) => { s.context = e.target.value; };
+  document.querySelectorAll('[data-k]').forEach((b) => {
+    b.onclick = () => { const key = b.getAttribute('data-k'), v = b.getAttribute('data-v'); s[key] = key === 'known' ? v === '1' : v; drawSbCheck(); };
+  });
+  document.querySelectorAll('[data-done]').forEach((b) => { b.onchange = () => { s.done[b.getAttribute('data-done')] = b.checked; drawSbCheck(); }; });
+  $('ckTask').onclick = () => openTaskModal(c, lvl, known, nOrders);
+  bindImport();
+}
+function agentTaskText(c, s, lvl, known, nOrders) {
+  const vals = {low: 'до €10 000', mid: '€10 000–50 000', high: 'больше €50 000'};
+  return ['Проверь перевозчика для TradeWay (навык tradeway-carrier-check).',
+    'Перевозчик: ' + (c ? c.name + (c.country || carrierCode(c) ? ' (' + [c.country, carrierCode(c)].filter(Boolean).join(', код ') + ')' : '') : '[название, страна и код]'),
+    'Груз и маршрут: ' + (s.context.trim() || '[укажи]'),
+    'Тип груза: ' + (s.cargo === 'excise' ? 'акцизный (алкоголь)' : 'обычный') + ', стоимость ' + vals[s.value],
+    'С нами: ' + (known ? 'уже возил' + (nOrders ? ' (заказов: ' + nOrders + ')' : '') : 'новый перевозчик'),
+    'Нужный уровень проверки: ' + LEVELS[lvl] + ' (' + lvl + ')',
+    'Верни результат в JSON-формате tw_carrier_check для импорта в CRM.'].join('\n');
+}
+function openTaskModal(c, lvl, known, nOrders) {
+  const text = agentTaskText(c, sbCheck, lvl, known, nOrders);
+  $('modalRoot').innerHTML =
+    '<div class="overlay"><div class="modal" role="dialog" aria-label="Задание для агента СБ"><h2>Задание для агента СБ</h2>' +
+    '<div class="sub">Скопируйте и вставьте в чат с агентом СБ в Claude.</div>' +
+    '<textarea id="taskText" rows="9">' + esc(text) + '</textarea><div id="taskMsg" class="okbox hidden"></div>' +
+    '<div class="acts"><button class="btn ghost" type="button" id="taskClose">Закрыть</button><button class="btn" type="button" id="taskCopy">Скопировать</button></div></div></div>';
+  $('taskClose').onclick = () => { $('modalRoot').innerHTML = ''; };
+  $('taskCopy').onclick = async () => {
+    const ta = $('taskText');
+    try { await navigator.clipboard.writeText(ta.value); } catch (e) { ta.select(); document.execCommand('copy'); }
+    let note = 'Скопировано.';
+    // Перевозчика, которого ещё не проверяли, помечаем «Проверка идёт».
+    if (c && vetOf(c) === 'not_checked') {
+      const r = await db.from('carriers').update({vetting_status: 'in_progress'}).eq('id', c.id);
+      if (!r.error) { c.vetting_status = 'in_progress'; note += ' Статус перевозчика: «Проверка идёт».'; }
+    }
+    $('taskMsg').textContent = note; $('taskMsg').classList.remove('hidden');
+  };
+}
+
+/* ----- Импорт проверки от агента СБ ----- */
+// Чистая функция: разбирает и проверяет JSON агента. Возвращает {errors: [...]} или {errors: [], data}.
+function parseCheckJson(text) {
+  const s = String(text == null ? '' : text).trim();
+  if (!s) return {errors: ['Вставьте JSON, который выдал агент СБ.']};
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a < 0 || b < a) return {errors: ['Не нашёл JSON: он начинается с { и заканчивается }. Скопируйте ответ агента целиком.']};
+  let p;
+  try { p = JSON.parse(s.slice(a, b + 1)); } catch (e) { return {errors: ['JSON повреждён, его не получается прочитать. Скопируйте ответ агента ещё раз целиком, от { до }.']}; }
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return {errors: ['Ожидался JSON в фигурных скобках { }.']};
+  const errs = [];
+  const str = (v) => typeof v === 'string' && v.trim() !== '';
+  const optStr = (v) => v == null || typeof v === 'string';
+  const isDate = (v) => v == null || v === '' || (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v + 'T00:00:00Z')) && new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v);
+  const isUrl = (v) => v == null || v === '' || (typeof v === 'string' && /^https:\/\//i.test(v.trim()));
+  const strArr = (v) => v == null || (Array.isArray(v) && v.every((x) => typeof x === 'string'));
+  const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+  const DATE_HINT = ' в формате ГГГГ-ММ-ДД, например 2026-07-30';
+  if (p.tw_carrier_check !== 1) errs.push('Нет метки "tw_carrier_check": 1 — похоже, это не результат агента СБ.');
+  const c = p.carrier, k = p.check;
+  if (!isObj(c)) errs.push('Нет блока "carrier" с данными перевозчика.');
+  else {
+    if (!str(c.name)) errs.push('Перевозчик: не указано название (carrier.name).');
+    if (!(typeof c.country === 'string' && /^[A-Za-z]{2}$/.test(c.country.trim()))) errs.push('Перевозчик: страна — две латинские буквы, например UA, PL, SK (carrier.country).');
+    if (!(str(c.reg_code) || (typeof c.reg_code === 'number' && isFinite(c.reg_code)))) errs.push('Перевозчик: не указан код ЄДРПОУ / IČO / NIP / VAT (carrier.reg_code).');
+    ['director', 'iban', 'email', 'phone'].forEach((f) => { if (!optStr(c[f])) errs.push('Перевозчик: поле carrier.' + f + ' должно быть текстом.'); });
+  }
+  if (!isObj(k)) errs.push('Нет блока "check" с итогом проверки.');
+  else {
+    if (!LEVELS[k.level]) errs.push('Итог: уровень проверки — base, standard или enhanced (check.level).');
+    if (!['approved', 'conditional', 'blocked'].includes(k.verdict)) errs.push('Итог: вердикт — approved, conditional или blocked (check.verdict).');
+    if (k.score != null && !(typeof k.score === 'number' && k.score >= 0 && k.score <= 10)) errs.push('Итог: балл — число от 0 до 10 (check.score).');
+    if (!isDate(k.checked_at)) errs.push('Итог: дата проверки' + DATE_HINT + ' (check.checked_at).');
+    ['red_flags', 'missing', 'tasks'].forEach((f) => { if (!strArr(k[f])) errs.push('Итог: check.' + f + ' — список строк в квадратных скобках.'); });
+    ['trip_context', 'conditions'].forEach((f) => { if (!optStr(k[f])) errs.push('Итог: поле check.' + f + ' должно быть текстом.'); });
+    if (!isUrl(k.card_url)) errs.push('Итог: ссылка на карточку должна начинаться с https:// (check.card_url).');
+  }
+  ['items', 'insurance', 'documents'].forEach((f) => { if (p[f] != null && !Array.isArray(p[f])) errs.push('Блок "' + f + '" должен быть списком в квадратных скобках.'); });
+  const arr = (f) => Array.isArray(p[f]) ? p[f] : [];
+  arr('items').forEach((it, i) => {
+    const n = 'Пункт проверки №' + (i + 1) + (isObj(it) && str(it.title) ? ' «' + it.title.trim() + '»' : '');
+    if (!isObj(it)) { errs.push(n + ': ожидался объект { }.'); return; }
+    if (![1, 2, 3].includes(it.layer)) errs.push(n + ': слой — 1, 2 или 3 (layer).');
+    if (!str(it.title)) errs.push(n + ': нет названия (title).');
+    if (!RESULTS[it.result]) errs.push(n + ': результат — pass, warn, fail или not_checked (result).');
+    if (!optStr(it.detail) || !optStr(it.source)) errs.push(n + ': detail и source должны быть текстом.');
+  });
+  arr('insurance').forEach((x, i) => {
+    const n = 'Страховка №' + (i + 1);
+    if (!isObj(x)) { errs.push(n + ': ожидался объект { }.'); return; }
+    ['insurer', 'policy_type', 'currency', 'franchise_note'].forEach((f) => { if (!optStr(x[f])) errs.push(n + ': поле ' + f + ' должно быть текстом.'); });
+    if (x.limit_amount != null && !(typeof x.limit_amount === 'number' && x.limit_amount >= 0)) errs.push(n + ': лимит — число или null (limit_amount).');
+    if (!strArr(x.exclusions)) errs.push(n + ': исключения — список строк (exclusions).');
+    if (x.confirmed_by_insurer != null && typeof x.confirmed_by_insurer !== 'boolean') errs.push(n + ': confirmed_by_insurer — true или false.');
+    if (!isDate(x.valid_until)) errs.push(n + ': срок действия' + DATE_HINT + ' (valid_until).');
+    if (!isUrl(x.drive_url)) errs.push(n + ': ссылка должна начинаться с https:// (drive_url).');
+  });
+  arr('documents').forEach((x, i) => {
+    const n = 'Документ №' + (i + 1);
+    if (!isObj(x)) { errs.push(n + ': ожидался объект { }.'); return; }
+    if (!optStr(x.doc_type) || !optStr(x.title)) errs.push(n + ': doc_type и title должны быть текстом.');
+    if (!str(x.doc_type) && !str(x.title)) errs.push(n + ': нужен тип (doc_type) или название (title).');
+    if (!isDate(x.valid_until)) errs.push(n + ': срок действия' + DATE_HINT + ' (valid_until).');
+    if (!isUrl(x.drive_url)) errs.push(n + ': ссылка должна начинаться с https:// (drive_url).');
+  });
+  if (errs.length) return {errors: errs};
+  const t = (v) => typeof v === 'string' ? (v.trim() || null) : (v == null ? null : v);
+  const sa = (v) => (v || []).map((x) => x.trim()).filter(Boolean);
+  const data = Object.assign({}, p, {
+    tw_carrier_check: 1,
+    carrier: Object.assign({}, c, {name: c.name.trim(), country: c.country.trim().toUpperCase(), reg_code: String(c.reg_code).replace(/\s+/g, ''),
+      director: t(c.director), iban: c.iban ? String(c.iban).replace(/\s+/g, '') || null : null, email: t(c.email), phone: t(c.phone)}),
+    check: Object.assign({}, k, {checked_at: t(k.checked_at), trip_context: t(k.trip_context), conditions: t(k.conditions), score: k.score == null ? null : k.score,
+      red_flags: sa(k.red_flags), missing: sa(k.missing), tasks: sa(k.tasks), card_url: t(k.card_url)}),
+    items: arr('items').map((it) => ({layer: it.layer, title: it.title.trim(), result: it.result, detail: t(it.detail), source: t(it.source)})),
+    insurance: arr('insurance').map((x) => ({insurer: t(x.insurer), policy_type: t(x.policy_type), limit_amount: x.limit_amount == null ? null : x.limit_amount, currency: t(x.currency),
+      franchise_note: t(x.franchise_note), exclusions: x.exclusions == null ? null : sa(x.exclusions), confirmed_by_insurer: x.confirmed_by_insurer == null ? null : x.confirmed_by_insurer,
+      valid_until: t(x.valid_until), drive_url: t(x.drive_url)})),
+    documents: arr('documents').map((x) => ({doc_type: t(x.doc_type), title: t(x.title), valid_until: t(x.valid_until), drive_url: t(x.drive_url)}))
+  });
+  return {errors: [], data: data};
+}
+// Тот же поиск, что делает база при сохранении: страна + код, для Украины ещё по старому полю ЄДРПОУ.
+const findCarrierByCode = (list, country, code) => (list || []).find((c) => String(c.country || '').toUpperCase() === country && c.reg_code === code) ||
+  (country === 'UA' ? (list || []).find((c) => c.edrpou === code) : null) || null;
+function importPreviewHtml(d) {
+  const k = d.check, found = findCarrierByCode(carriers, d.carrier.country, d.carrier.reg_code);
+  const byLayer = [1, 2, 3].map((n) => d.items.filter((x) => x.layer === n).length);
+  const bad = d.items.filter((x) => x.result === 'fail').length, warn = d.items.filter((x) => x.result === 'warn').length;
+  const older = found && found.last_checked_at && k.checked_at && k.checked_at < String(found.last_checked_at).slice(0, 10);
+  const li = (title, arr) => arr.length ? '<div><strong>' + title + ':</strong><ul class="plain">' + arr.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></div>' : '';
+  return '<div class="card"><h3 class="sm">Предпросмотр</h3><div class="pad" style="padding:14px;gap:10px;font-size:14px">' +
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px"><strong>' + esc(d.carrier.name) + '</strong><span class="muted">' + esc(d.carrier.country + ' · ' + d.carrier.reg_code) + '</span></div>' +
+    (found ? '<div class="infobox">Перевозчик уже есть в базе (' + esc(found.name) + ') — проверка добавится к нему.</div>' : '<div class="infobox">Новый перевозчик — будет создан в «Контрагентах».</div>') +
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px">' + vetChip(k.verdict) + '<span>Балл: <b>' + (k.score != null ? esc(k.score) : '—') + '</b></span><span>Уровень: <b>' + LEVELS[k.level] + '</b></span><span>Дата: <b>' + (k.checked_at ? fdate(k.checked_at) : 'сегодня') + '</b></span></div>' +
+    (k.trip_context ? '<div class="sub" style="font-size:14px">Под рейс: ' + esc(k.trip_context) + '</div>' : '') +
+    (k.conditions ? '<div class="warnbox">Условие: ' + esc(k.conditions) + '</div>' : '') +
+    '<div>Пунктов проверки: <b>' + d.items.length + '</b> (слой 1: ' + byLayer[0] + ', слой 2: ' + byLayer[1] + ', слой 3: ' + byLayer[2] + ')' +
+      (bad ? ' · <span class="neg">не пройдено: ' + bad + '</span>' : '') + (warn ? ' · с замечаниями: ' + warn : '') + '</div>' +
+    '<div>Страховок: <b>' + d.insurance.length + '</b> · документов: <b>' + d.documents.length + '</b></div>' +
+    (k.red_flags.length ? '<div class="badbox">' + li('Стоп-факторы', k.red_flags) + '</div>' : '') + li('Не хватает', k.missing) + li('Сделать до погрузки', k.tasks) +
+    (older ? '<div class="warnbox">Эта проверка старее последней (' + fdate(found.last_checked_at) + '): она попадёт в историю, а статус перевозчика не изменится.</div>' : '') +
+  '</div></div>';
+}
+function openImportModal() {
+  let parsed = null;
+  $('modalRoot').innerHTML =
+    '<div class="overlay"><div class="modal" role="dialog" aria-label="Импорт проверки" style="max-width:680px"><h2>Импорт проверки</h2>' +
+    '<div class="sub">Вставьте JSON, который выдал агент СБ. Можно вместе с текстом вокруг — CRM сама найдёт JSON.</div>' +
+    '<textarea id="impText" class="json" placeholder="{ &quot;tw_carrier_check&quot;: 1, ... }"></textarea>' +
+    '<div id="impErr" class="err hidden"></div><div id="impPrev"></div>' +
+    '<div class="acts"><button class="btn ghost" type="button" id="impCancel">Отмена</button><button class="btn ghost" type="button" id="impCheck">Проверить</button><button class="btn" type="button" id="impSave" disabled>Сохранить</button></div></div></div>';
+  const err = $('impErr');
+  const showErrs = (list) => { err.innerHTML = '<strong>Не сохранено, исправьте:</strong><ul class="plain">' + list.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>'; err.classList.remove('hidden'); };
+  $('impText').focus();
+  $('impText').oninput = () => { parsed = null; $('impSave').disabled = true; $('impPrev').innerHTML = ''; err.classList.add('hidden'); };
+  $('impCancel').onclick = () => { $('modalRoot').innerHTML = ''; };
+  $('impCheck').onclick = () => {
+    const r = parseCheckJson($('impText').value);
+    err.classList.add('hidden'); $('impPrev').innerHTML = '';
+    if (r.errors.length) { parsed = null; $('impSave').disabled = true; showErrs(r.errors); return; }
+    parsed = r.data; $('impPrev').innerHTML = importPreviewHtml(parsed); $('impSave').disabled = false;
+  };
+  $('impSave').onclick = async () => {
+    if (!parsed) return;
+    const btn = $('impSave'); btn.disabled = true; btn.textContent = 'Сохраняю...';
+    const r = await db.rpc('import_carrier_check', {p: parsed});
+    if (r.error) { showErrs(['База не приняла проверку, ничего не сохранено: ' + r.error.message]); btn.disabled = false; btn.textContent = 'Сохранить'; return; }
+    $('modalRoot').innerHTML = '';
+    const k = await db.from('carriers').select('*').order('name');
+    if (!k.error) carriers = k.data;
+    const to = '#/sb/c/' + r.data.carrier_id;
+    if (location.hash === to) renderSbCard(r.data.carrier_id); else location.hash = to;
+  };
+}
+
+/* ----- Дашборд: полисы и документы, которые истекают в ближайшие 30 дней ----- */
+async function fillDashExpiring() {
+  if (!vetReady || !$('dashExp')) return;
+  const soon = addDays(todayIso(), 30);
+  const [i, d] = await Promise.all([
+    db.from('carrier_insurance').select('carrier_id, insurer, policy_type, valid_until').lte('valid_until', soon),
+    db.from('carrier_documents').select('carrier_id, doc_type, title, valid_until').lte('valid_until', soon)
+  ]);
+  const box = $('dashExp');
+  if (!box) return;
+  if (i.error || d.error) { box.innerHTML = '<div class="err">Сроки документов не загрузились: ' + esc((i.error || d.error).message) + '</div>'; return; }
+  const list = expiringDocs(i.data, d.data, soon);
+  box.innerHTML = !list.length ? '' : '<div class="card"><h3>Истекают ≤30 дней <span class="gsum">полисы и документы перевозчиков</span></h3>' +
+    list.map((x) => '<div class="row"><div><a href="#/sb/c/' + esc(x.carrier_id) + '" style="font-weight:500">' + esc(carrierName(x.carrier_id) || 'Перевозчик') + '</a><div class="sub">' + esc(x.title) + ' · до ' + fdate(x.date) + '</div></div>' + expiryChip(x.date) + '</div>').join('') + '</div>';
+}
+
 function route() {
   const h = location.hash || '#/';
+  if (h === '#/sb') return renderSb();
+  if (h.startsWith('#/sb/c/')) return renderSbCard(h.slice(7));
+  if (h === '#/sb/check') return renderSbCheck(null);
+  if (h.startsWith('#/sb/check/')) return renderSbCheck(h.slice(11));
   if (h.startsWith('#/trip/')) return renderTrip(h.slice(7));
   if (h === '#/trips') { ordersFilter.kind = 'trip'; location.replace('#/orders'); return; }
   if (h.startsWith('#/deal/')) return renderDeal(h.slice(7));
