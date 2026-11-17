@@ -961,7 +961,6 @@ function drawDeal(okMsg) {
   const bindNum = (elId, field) => { $(elId).oninput = (e) => { d[field] = numOrNull(e.target.value); updateDealCalc(); }; };
   $('dTitle').oninput = (e) => { d.title = e.target.value; };
   $('dClient').oninput = (e) => { d.client_name = e.target.value; };
-  mountDocs('dDocs', {deal_id: id}, {client: d.client_name, name: ((d.start_date || '') + ' ' + (d.title || '')).trim()});
   bindNum('dMarks', 'qty_marks'); bindNum('dStickers', 'qty_stickers'); bindNum('dPallets', 'pallets'); bindNum('dFinal', 'final_price');
   $('dTax').onchange = (e) => { d.tax_rate = Number(e.target.value); updateDealCalc(); };
   $('dStart').onchange = (e) => { d.start_date = e.target.value || null; };
@@ -1003,6 +1002,8 @@ function drawDeal(okMsg) {
   $('dSave').onclick = () => saveDeal(false);
   $('dStatus').onchange = (e) => { d.status = e.target.value; };
   updateDealCalc();
+  // Документы — в самом конце: даже если с ними что-то не так, остальная карточка уже работает.
+  mountDocs('dDocs', {deal_id: s.id}, {client: d.client_name, name: ((d.start_date || '') + ' ' + (d.title || '')).trim()});
 }
 
 function updateDealCalc() {
