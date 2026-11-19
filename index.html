@@ -199,6 +199,15 @@ tr.total td{font-weight:600;border-top:2px solid var(--line)}
 .lines .x:hover,.tbl-sm .x:hover{background:var(--bg);color:#9B1C1C}
 .addrow{display:flex;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line)}
 .addrow select{flex:1 1 auto;width:auto;min-width:0;padding:6px 8px;font-size:13px;border-radius:6px}
+.dupnote{margin:0 12px 10px}
+.dupnote:empty{display:none}
+.lines td.delc{white-space:nowrap;text-align:right}
+.delask{display:inline-flex;gap:4px}
+.delask .btn{padding:3px 8px;font-size:12px;border-radius:6px}
+.delask .btn.del{background:#B42318}
+.lines tr.noqty td{background:#FFF6CC}
+.qhint{display:block;white-space:normal;font-size:10.5px;line-height:1.25;color:var(--warn);max-width:110px;margin-left:auto;text-align:right}
+.qhint:empty{display:none}
 /* панель «Итог» */
 .tot{min-width:0;font-size:13px}
 .tot th,.tot td{white-space:nowrap;padding:6px 8px}
@@ -288,7 +297,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const eur = (n) => (n == null || n === '') ? '—' : '€' + Number(n).toLocaleString('ru-RU', {maximumFractionDigits: 2});
 const fdate = (v) => { if (!v) return '—'; const p = String(v).split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : esc(v); };
-const numOrNull = (v) => { v = String(v == null ? '' : v).trim().replace(',', '.'); return v === '' ? null : Number(v); };
+const numOrNull = (v) => { v = String(v == null ? '' : v).replace(/[\s\u00a0]/g, '').replace(',', '.'); return v === '' ? null : Number(v); };
 const DOC_TYPES = {
   carrier_order: 'Заявка перевозчику', client_order: 'Заявка клиенту', cmr: 'CMR',
   packing_list: 'Packing list', invoice: 'Счёт', customs_certificate: 'Довідка', act: 'Акт', other: 'Другое'
@@ -932,10 +941,10 @@ function dealLineRow(l) {
     '<td><input data-f="name" value="' + esc(l.name) + '" placeholder="Название статьи" aria-label="Название статьи"></td>' +
     '<td><select data-f="basis" aria-label="Основа">' + Object.entries(BASIS).map(([k, v]) => '<option value="' + k + '"' + (l.basis === k ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></td>' +
     rate('cost_rate', 'Ставка себестоимости') + rate('sale_rate', 'Ставка продажи') +
-    '<td class="r" data-c="cost"></td><td class="r" data-c="sale"></td><td class="r" data-c="diff"></td>' +
+    '<td class="r"><span data-c="cost"></span><small class="qhint" data-c="hint"></small></td><td class="r" data-c="sale"></td><td class="r" data-c="diff"></td>' +
     '<td><select class="csel" data-f="carrier_id" aria-label="Контрагент" title="Строки с одним контрагентом объединяются в один счёт к оплате">' + carrierOptions(l.carrier_id) + '</select></td>' +
     '<td style="text-align:center"><input type="checkbox" data-f="unconfirmed"' + (l.unconfirmed ? ' checked' : '') + ' aria-label="Не подтверждено" title="Не подтверждено"></td>' +
-    '<td><button class="x" type="button" data-del aria-label="Удалить строку" title="Удалить строку">×</button></td></tr>';
+    '<td class="delc">' + LINE_DEL_BTN + '</td></tr>';
 }
 
 function drawDeal(okMsg) {
@@ -978,7 +987,7 @@ function drawDeal(okMsg) {
         '</tr></thead><tbody id="dLines">' + s.lines.map(dealLineRow).join('') + '</tbody></table></div>' +
         '<div class="addrow"><label for="addLine" class="sr">Добавить строку</label><select id="addLine"><option value="">Своя строка</option>' +
           s.catalog.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select>' +
-          '<button class="btn small" id="addLineBtn" type="button">+ Добавить строку</button></div>' +
+          '<button class="btn small" id="addLineBtn" type="button">+ Добавить строку</button></div><div class="dupnote" id="addDup" role="status"></div>' +
       '</section>' +
       '<section class="card" aria-label="Счета к оплате"><h3 class="sm">Счета к оплате</h3><div id="dPay"></div></section>' +
       '<section class="card" aria-label="Заметки"><h3 class="sm">Заметки</h3><div class="pad" style="padding:10px 14px 14px"><textarea id="dNotes" rows="6" placeholder="Груз, авто, водитель, номера документов">' + val(d.notes) + '</textarea></div></section>' +
@@ -1022,19 +1031,28 @@ function drawDeal(okMsg) {
   $('dPay').addEventListener('change', onPay);
   $('dLines').addEventListener('input', onLine);
   $('dLines').addEventListener('change', onLine);
-  $('dLines').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-del]'); if (!b) return;
-    const tr = b.closest('tr[data-key]');
-    const i = s.lines.findIndex((x) => x.key === tr.getAttribute('data-key'));
-    if (i < 0) return;
-    if (s.lines[i].id) s.removed.push(s.lines[i].id);
-    s.lines.splice(i, 1); removeLineRows($('dLines'), tr.getAttribute('data-key')); updateDealCalc();
-  });
+  $('dLines').addEventListener('click', (e) => lineDelClick(e, async (key, td) => {
+    const l = s.lines.find((x) => x.key === key);
+    if (!l) return;
+    if (l.id) {
+      // Сохранённая строка удаляется из базы сразу, без кнопки «Сохранить».
+      td.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      const r = await db.from('deal_lines').delete().eq('id', l.id);
+      if (r.error) {
+        td.innerHTML = LINE_DEL_BTN;
+        const box = $('dealErr'); box.textContent = 'Не удалось удалить строку: ' + r.error.message; box.classList.remove('hidden');
+        return;
+      }
+    }
+    const i = s.lines.indexOf(l);
+    if (i >= 0) s.lines.splice(i, 1);
+    removeLineRows($('dLines'), key); updateDealCalc(); paintDealMiss();
+  }));
+  $('addLine').onchange = () => lineDupNote('addDup', s.lines, s.catalog.find((x) => x.id === $('addLine').value), false);
   $('addLineBtn').onclick = () => {
     const c = s.catalog.find((x) => x.id === $('addLine').value);
-    const l = c ? {name: c.name, basis: c.basis, cost_rate: c.cost_rate, sale_rate: c.sale_rate, carrier_id: c.carrier_id || null}
-                : {name: '', basis: 'fixed', cost_rate: null, sale_rate: null};
-    l.unconfirmed = false; l.key = 'k' + (++lineSeq); l.dirty = true;
+    lineDupNote('addDup', s.lines, c, true);
+    const l = newLineFrom(c);
     s.lines.push(l); joinPayGroup(s.lines, l);
     $('dLines').insertAdjacentHTML('beforeend', dealLineRow(l));
     updateDealCalc();
@@ -1059,16 +1077,7 @@ function paintDealMiss() {
 function updateDealCalc() {
   const s = dealState, res = calcDeal(s.deal, s.lines), cur = dealCur(s.deal);
   const m = (n) => money(n, cur), mFine = (n) => money(n, cur, true);
-  s.lines.forEach((l, i) => {
-    const tr = document.querySelector('#dLines tr[data-key="' + l.key + '"]');
-    if (!tr) return;
-    const r = res.rows[i];
-    tr.querySelector('[data-c="cost"]').textContent = l.cost_rate == null ? '—' : m(r.cost);
-    tr.querySelector('[data-c="sale"]').textContent = l.sale_rate == null ? '—' : m(r.sale);
-    const dc = tr.querySelector('[data-c="diff"]');
-    dc.textContent = (l.cost_rate == null && l.sale_rate == null) ? '—' : m(r.diff);
-    dc.className = 'r ' + (r.diff >= 0 ? 'pos' : 'neg');
-  });
+  paintLineRows('dLines', s.lines, res.rows, s.deal, cur);
   const a = res.calc, b = res.billed;
   const line = (label, f, fmt, cls) => '<tr><td' + (cls ? ' style="font-weight:600"' : '') + '>' + label + '</td>' +
     [a, b].map((x) => '<td class="r' + (cls ? ' ' + (x[f] >= 0 ? 'pos' : 'neg') : '') + '">' + fmt(x[f]) + '</td>').join('') + '</tr>';
@@ -1101,7 +1110,9 @@ async function saveDeal(activate) {
   if (d.start_date && d.end_date && d.end_date < d.start_date) return fail('Дата выгрузки на складе раньше даты загрузки. Проверьте даты.');
   if (d.client_invoice_amount != null && Number.isNaN(d.client_invoice_amount)) return fail('Проверьте поле «Выставлено клиенту»: только цифры.');
   for (const l of s.lines) {
-    if (!String(l.name || '').trim()) return fail('У каждой строки должно быть название.');
+    const nm = lineSaveName(l, s.catalog);
+    if (!nm) return fail('У строки без названия впишите статью: её нет в списке статей, подставить нечего.');
+    if (nm !== l.name) { l.name = nm; l.dirty = true; }
     if (lineBad(l)) return fail('Проверьте суммы в строке «' + l.name + '»: только цифры.');
   }
   if (d.cargo_value_eur != null && Number.isNaN(d.cargo_value_eur)) return fail('Проверьте поле «Стоимость груза»: только цифры.');
@@ -1358,7 +1369,7 @@ function drawNewOrder() {
         '</tr></thead><tbody id="noLines">' + s.lines.map(dealLineRow).join('') + '</tbody></table></div>' +
         '<div class="addrow"><label for="noAdd" class="sr">Добавить строку</label><select id="noAdd"><option value="">Своя строка</option>' +
           s.catalog.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select>' +
-          '<button class="btn small" id="noAddBtn" type="button">+ Добавить строку</button></div>' +
+          '<button class="btn small" id="noAddBtn" type="button">+ Добавить строку</button></div><div class="dupnote" id="noAddDup" role="status"></div>' +
       '</section>' +
       '<section class="card" aria-label="Счета к оплате"><h3 class="sm">Счета к оплате</h3><div id="noPay"></div></section>') +
     '</div><aside class="deal-side">' +
@@ -1408,18 +1419,16 @@ function drawNewOrder() {
     $('noPay').addEventListener('change', onPay);
     $('noLines').addEventListener('input', onLine);
     $('noLines').addEventListener('change', onLine);
-    $('noLines').addEventListener('click', (e) => {
-      const b = e.target.closest('[data-del]'); if (!b) return;
-      const tr = b.closest('tr[data-key]');
-      const i = s.lines.findIndex((x) => x.key === tr.getAttribute('data-key'));
+    $('noLines').addEventListener('click', (e) => lineDelClick(e, (key) => {
+      const i = s.lines.findIndex((x) => x.key === key);
       if (i < 0) return;
-      s.lines.splice(i, 1); removeLineRows($('noLines'), tr.getAttribute('data-key')); updateNewOrderCalc();
-    });
+      s.lines.splice(i, 1); removeLineRows($('noLines'), key); updateNewOrderCalc();
+    }));
+    $('noAdd').onchange = () => lineDupNote('noAddDup', s.lines, s.catalog.find((x) => x.id === $('noAdd').value), false);
     $('noAddBtn').onclick = () => {
       const c = s.catalog.find((x) => x.id === $('noAdd').value);
-      const l = c ? {name: c.name, basis: c.basis, cost_rate: c.cost_rate, sale_rate: c.sale_rate, carrier_id: c.carrier_id || null}
-                  : {name: '', basis: 'fixed', cost_rate: null, sale_rate: null};
-      l.unconfirmed = false; l.key = 'k' + (++lineSeq);
+      lineDupNote('noAddDup', s.lines, c, true);
+      const l = newLineFrom(c);
       s.lines.push(l); joinPayGroup(s.lines, l);
       $('noLines').insertAdjacentHTML('beforeend', dealLineRow(l));
       updateNewOrderCalc();
@@ -1434,16 +1443,7 @@ function updateNewOrderCalc() {
   const s = newOrder, x = newOrderDeal(s), res = calcDeal(x.deal, x.lines), b = res.billed, cur = s.currency;
   const m = (n) => money(n, cur), mEq = (n) => moneyEq(n, x.deal);
   if (s.services) {
-    s.lines.forEach((l, i) => {
-      const tr = document.querySelector('#noLines tr[data-key="' + l.key + '"]');
-      if (!tr) return;
-      const r = res.rows[i];
-      tr.querySelector('[data-c="cost"]').textContent = l.cost_rate == null ? '—' : m(r.cost);
-      tr.querySelector('[data-c="sale"]').textContent = l.sale_rate == null ? '—' : m(r.sale);
-      const dc = tr.querySelector('[data-c="diff"]');
-      dc.textContent = (l.cost_rate == null && l.sale_rate == null) ? '—' : m(r.diff);
-      dc.className = 'r ' + (r.diff >= 0 ? 'pos' : 'neg');
-    });
+    paintLineRows('noLines', s.lines, res.rows, x.deal, cur);
     $('noIncome').value = Math.round(b.price * 100) / 100;
     $('noCost').value = Math.round(b.cost * 100) / 100;
     paintLinePay('noLines', s.lines, res.rows);
@@ -1477,7 +1477,9 @@ async function saveNewOrder() {
       if (v != null && !(Number.isInteger(v) && v >= 0)) return fail('Количество бутылок: только целые числа без минуса.');
     }
     for (const l of s.lines) {
-      if (!String(l.name || '').trim()) return fail('У каждой строки должно быть название.');
+      const nm = lineSaveName(l, s.catalog);
+      if (!nm) return fail('У строки без названия впишите статью: её нет в списке статей, подставить нечего.');
+      l.name = nm;
       if (lineBad(l)) return fail('Проверьте суммы в строке «' + l.name + '»: только цифры.');
     }
   }
@@ -2277,6 +2279,59 @@ function joinPayGroup(lines, l) {
   if (!l.due_date && mate.due_date) l.due_date = mate.due_date;
 }
 function removeLineRows(tbody, key) { tbody.querySelectorAll('tr[data-key="' + key + '"]').forEach((r) => r.remove()); }
+// Удаление строки в два клика: «×» → «Удалить?» / «Отмена». Без всплывающих окон.
+const LINE_DEL_BTN = '<button class="x" type="button" data-del aria-label="Удалить строку" title="Удалить строку">×</button>';
+function lineDelClick(e, onYes) {
+  const td = e.target.closest('td.delc'); if (!td) return;
+  if (e.target.closest('[data-del]')) {
+    td.innerHTML = '<span class="delask"><button class="btn small del" type="button" data-del-yes>Удалить?</button><button class="btn small ghost" type="button" data-del-no>Отмена</button></span>';
+    td.querySelector('[data-del-no]').focus();
+  } else if (e.target.closest('[data-del-no]')) {
+    td.innerHTML = LINE_DEL_BTN; td.querySelector('[data-del]').focus();
+  } else if (e.target.closest('[data-del-yes]')) onYes(td.closest('tr[data-key]').getAttribute('data-key'), td);
+}
+// Новая строка: из списка статей (с названием статьи) или пустая «своя».
+function newLineFrom(c) {
+  const nm = c ? String(c.name || '').trim() : '';
+  const l = c ? {name: nm, catName: nm, basis: c.basis || 'fixed', cost_rate: c.cost_rate, sale_rate: c.sale_rate, carrier_id: c.carrier_id || null}
+              : {name: '', basis: 'fixed', cost_rate: null, sale_rate: null};
+  l.unconfirmed = false; l.key = 'k' + (++lineSeq); l.dirty = true;
+  return l;
+}
+const lineNameKey = (v) => String(v || '').trim().toLowerCase();
+// Предупреждение о дубле: статья с таким названием уже есть в заказе. Добавлять не мешает.
+function lineDupNote(boxId, lines, c, added) {
+  const box = $(boxId); if (!box) return;
+  const k = c ? lineNameKey(c.name) : '';
+  const dup = !!k && lines.some((l) => lineNameKey(l.name) === k || lineNameKey(l.catName) === k);
+  box.innerHTML = dup ? '<div class="warnbox">Такая строка уже есть: «' + esc(String(c.name).trim()) + '».' + (added ? ' Добавлена ещё одна, проверьте, что это не повтор.' : ' Добавить всё равно можно.') + '</div>' : '';
+}
+// Название строки для сохранения: пустое поле → название статьи из списка.
+function lineSaveName(l, catalog) {
+  const n = String(l.name || '').trim(); if (n) return n;
+  if (l.catName) return l.catName;
+  const num = (v) => v == null || v === '' ? null : Number(v);
+  const c = (catalog || []).find((x) => x.basis === l.basis && num(x.cost_rate) === num(l.cost_rate) && num(x.sale_rate) === num(l.sale_rate));
+  return c ? String(c.name || '').trim() : '';
+}
+// Суммы в строках, подсказка про нулевое количество и жёлтая подсветка.
+function paintLineRows(tbodyId, lines, rows, deal, cur) {
+  const m = (n) => money(n, cur);
+  const qm = Number(deal.qty_marks) || 0, qs = Number(deal.qty_stickers) || 0;
+  lines.forEach((l, i) => {
+    const tr = document.querySelector('#' + tbodyId + ' tr[data-key="' + l.key + '"]');
+    if (!tr) return;
+    const r = rows[i];
+    tr.querySelector('[data-c="cost"]').textContent = l.cost_rate == null ? '—' : m(r.cost);
+    tr.querySelector('[data-c="sale"]').textContent = l.sale_rate == null ? '—' : m(r.sale);
+    const dc = tr.querySelector('[data-c="diff"]');
+    dc.textContent = (l.cost_rate == null && l.sale_rate == null) ? '—' : m(r.diff);
+    dc.className = 'r ' + (r.diff >= 0 ? 'pos' : 'neg');
+    const what = l.basis === 'per_mark' && !qm ? 'марок' : l.basis === 'per_sticker' && !qs ? 'стикеров' : '';
+    tr.classList.toggle('noqty', !!what);
+    tr.querySelector('[data-c="hint"]').textContent = what ? 'укажите количество ' + what + ' вверху' : '';
+  });
+}
 // Подсветка строк расхода без контрагента и подсказка «К оплате» = расход строки.
 function paintLinePay(tbodyId, lines, rows) {
   lines.forEach((l, i) => {
