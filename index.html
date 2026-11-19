@@ -90,6 +90,8 @@ input,select,textarea{width:100%;padding:11px 12px;font-size:14px;font-family:in
 .qit td:last-child{padding-right:8px}
 .qit tr.qibad td{background:#FCEBEB;color:#9B1C1C}
 .qih{margin:6px 0 0;font-size:14px}
+.miss{font-size:11px;color:var(--warn);margin-top:3px}
+#dMissChip:empty{display:none}
 .acts{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
 details{padding:0 20px 16px}
 summary{cursor:pointer;font-size:13px;color:var(--muted);padding:6px 0}
@@ -949,7 +951,7 @@ function drawDeal(okMsg) {
   $('view').innerHTML =
     '<div class="dealv">' +
     '<div class="deal-head"><a href="#/orders" style="font-size:14px;text-decoration:none">← Все заказы</a>' +
-      '<h1>' + esc(d.title || 'Без названия') + '</h1>' + dealStatusChip(d.status) + '</div>' +
+      '<h1>' + esc(d.title || 'Без названия') + '</h1>' + dealStatusChip(d.status) + '<span id="dMissChip"></span></div>' +
     '<div id="dealErr" class="err hidden"></div>' +
     (okMsg ? '<div class="okbox">' + esc(okMsg) + '</div>' : '') +
     '<div class="deal-grid"><div class="deal-left">' +
@@ -961,7 +963,7 @@ function drawDeal(okMsg) {
         '<div><label for="dStickers" title="Бутылок под стикеры">Бут. под стикеры</label><input id="dStickers" inputmode="numeric" value="' + val(d.qty_stickers) + '"></div>' +
         '<div><label for="dPallets">Палет</label><input id="dPallets" inputmode="numeric" value="' + val(d.pallets) + '"></div>' +
         '<div><label for="dTax">Налог</label><select id="dTax">' + taxOpts.map((t) => '<option value="' + t + '"' + (Number(d.tax_rate) === t ? ' selected' : '') + '>' + pct(t) + '</option>').join('') + '</select></div>' +
-        '<div><label for="dFinal" title="Итоговая цена клиенту. Если пусто, берётся цена по расчёту">Выставлено, ' + sign + '</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
+        '<div><label for="dFinal" title="Доход: итоговая цена клиенту без ПДВ. Если пусто, берётся цена по расчёту">Доход, ' + sign + '</label><input id="dFinal" inputmode="decimal" value="' + val(d.final_price) + '"></div>' +
         '<div class="st"><label for="dCur">Валюта</label><select id="dCur">' + curOpts.map((c) => curOption(c, c === cur)).join('') + '</select></div>' +
         fxFieldHtml('dFx', cur, d.fx_to_eur) +
         '<div class="dt"><label for="dStart">Загрузка</label><input id="dStart" type="date" value="' + val(d.start_date) + '"></div>' +
@@ -979,13 +981,15 @@ function drawDeal(okMsg) {
           '<button class="btn small" id="addLineBtn" type="button">+ Добавить строку</button></div>' +
       '</section>' +
       '<section class="card" aria-label="Счета к оплате"><h3 class="sm">Счета к оплате</h3><div id="dPay"></div></section>' +
+      '<section class="card" aria-label="Заметки"><h3 class="sm">Заметки</h3><div class="pad" style="padding:10px 14px 14px"><textarea id="dNotes" rows="6" placeholder="Груз, авто, водитель, номера документов">' + val(d.notes) + '</textarea></div></section>' +
       '<section class="card" aria-label="Документы рейса"><h3 class="sm">Документы рейса</h3><div id="dDocs"></div></section>' +
     '</div><aside class="deal-side">' +
       '<div class="card"><h3 class="sm">Итог</h3><div class="scroll"><table class="tot"><thead><tr><th></th><th class="r">По расчёту</th><th class="r">Выставлено</th></tr></thead><tbody id="dTot"></tbody></table></div></div>' +
       '<div class="card"><h3 class="sm">Оплата клиента</h3><div class="cpay">' +
         '<div><label for="dInv" title="Если пусто — равно итоговой цене">Выставлено клиенту, ' + sign + '</label><input id="dInv" inputmode="decimal" value="' + val(d.client_invoice_amount) + '"></div>' +
-        '<div><label for="dDue">Срок оплаты</label><input id="dDue" type="date" value="' + val(d.client_due_date) + '"></div></div></div>' +
-      '<div id="dVet"></div><div id="dWarn"></div>' +
+        '<div><label for="dDue">Срок оплаты</label><input id="dDue" type="date" value="' + val(d.client_due_date) + '"></div>' +
+        '<div style="grid-column:1/-1"><label for="dOrd">№ заявки клиенту</label><input id="dOrd" value="' + val(qiNotesOrderNo(d.notes)) + '" placeholder="напр. 8"></div></div></div>' +
+      '<div id="dMiss"></div><div id="dVet"></div><div id="dWarn"></div>' +
       '<div class="side-acts"><button class="btn" id="dSave" type="button">Сохранить</button>' +
 '</div>' +
     '</aside></div></div>';
@@ -1002,6 +1006,11 @@ function drawDeal(okMsg) {
   if ($('dFx')) bindNum('dFx', 'fx_to_eur');
   bindNum('dInv', 'client_invoice_amount');
   $('dDue').onchange = (e) => { d.client_due_date = e.target.value || null; };
+  $('dOrd').oninput = (e) => { d.notes = setNotesOrderNo(d.notes, e.target.value); $('dNotes').value = d.notes; };
+  $('dNotes').oninput = (e) => { d.notes = e.target.value; $('dOrd').value = qiNotesOrderNo(d.notes) || ''; };
+  // Пометка «Неполные данные» обновляется сразу при вводе в любое поле карточки.
+  $('view').querySelector('.dealv').addEventListener('input', paintDealMiss);
+  $('view').querySelector('.dealv').addEventListener('change', paintDealMiss);
   if (vetReady) {
     $('dExcise').onchange = (e) => { d.cargo_excise = e.target.value === '1'; updateDealCalc(); };
     bindNum('dCargoVal', 'cargo_value_eur');
@@ -1034,8 +1043,17 @@ function drawDeal(okMsg) {
   $('dSave').onclick = () => saveDeal(false);
   $('dStatus').onchange = (e) => { d.status = e.target.value; };
   updateDealCalc();
+  paintDealMiss();
   // Документы — в самом конце: даже если с ними что-то не так, остальная карточка уже работает.
   mountDocs('dDocs', {deal_id: s.id}, {client: d.client_name, name: ((d.start_date || '') + ' ' + (d.title || '')).trim()});
+}
+
+function paintDealMiss() {
+  const s = dealState;
+  if (!s || !$('dMiss')) return;
+  const list = missOf(s.deal, s.lines);
+  $('dMissChip').innerHTML = missChip(list);
+  $('dMiss').innerHTML = list.length ? '<div class="warnbox"><strong>Неполные данные.</strong> Не заполнено: ' + esc(list.join(', ')) + '. Дозаполните и нажмите «Сохранить».</div>' : '';
 }
 
 function updateDealCalc() {
@@ -1100,7 +1118,9 @@ async function saveDeal(activate) {
       tax_rate: Number(d.tax_rate) || 0, final_price: d.final_price,
       start_date: d.start_date || null, end_date: d.end_date || null, company: d.company || null,
       currency: dealCur(d), fx_to_eur: dealCur(d) === 'EUR' ? 1 : Number(d.fx_to_eur),
-      client_invoice_amount: d.client_invoice_amount == null ? null : d.client_invoice_amount, client_due_date: d.client_due_date || null};
+      client_invoice_amount: d.client_invoice_amount == null ? null : d.client_invoice_amount, client_due_date: d.client_due_date || null,
+      // Заметки; пометку «Дозаполнить» пересчитываем: заполненное убираем, валюту считаем подтверждённой при сохранении.
+      notes: setMissMark(d.notes, missOf(d, s.lines).filter((l) => l !== 'Валюта')) || null};
     row.status = activate ? 'active' : normStatus(d.status);
     if (vetReady) Object.assign(row, {cargo_excise: !!d.cargo_excise, cargo_value_eur: d.cargo_value_eur == null ? null : d.cargo_value_eur});
     let r = await db.from('deals').update(row).eq('id', s.id);
@@ -1151,8 +1171,12 @@ const NEW_ORDER_COMPANY = COMPANIES[0];
 let orders = [], ordersErr = null, ordersLoadedAt = 0, ordersOkMsg = '';
 let ordersFilter = {mode: 'all', from: '', to: '', client: '', kind: '', status: ''};
 
+let ordersMissing = new Map();   // id заказа → что не заполнено (только заказы из быстрого ввода с пометкой)
 async function loadOrders() {
-  const r = await db.from('orders').select('*');
+  const [r, mr] = await Promise.all([db.from('orders').select('*'),
+    db.from('deals').select('id, title, client_id, start_date, end_date, currency, fx_to_eur, final_price, client_invoice_amount, client_due_date, notes, deal_lines(carrier_id, cost_rate, payable_amount, due_date)').ilike('notes', '%' + MISS_MARK + '%')]);
+  ordersMissing = new Map();
+  if (!mr.error) (mr.data || []).forEach((d) => { const m = missOf(d, d.deal_lines); if (m.length) ordersMissing.set(d.id, m); });
   if (r.error) { orders = []; ordersErr = r.error.message; } else { orders = normalizeOrders(r.data, trips); ordersErr = null; }
   ordersLoadedAt = Date.now();
 }
@@ -1213,7 +1237,7 @@ function ordersTable(rows) {
         '<td style="white-space:nowrap"><a href="' + esc(href) + '" style="font-weight:500">' + fdate(o.start_date) + '</a></td>' +
         '<td style="white-space:nowrap">' + fdate(o.end_date) + '</td>' +
         '<td>' + (name ? esc(name) : '<span class="muted">не указан</span>') + '</td>' +
-        '<td>' + esc(o.title || '—') + '</td>' +
+        '<td>' + esc(o.title || '—') + (o.kind === 'deal' && ordersMissing.has(o.id) ? ' ' + missChip(ordersMissing.get(o.id)) + '<div class="miss">Не заполнено: ' + esc(ordersMissing.get(o.id).join(', ')) + '</div>' : '') + '</td>' +
         '<td><span class="kind ' + (o.kind === 'trip' ? 'k-trip' : 'k-deal') + '">' + esc(ORDER_KIND[o.kind] || o.kind) + '</span></td>' +
         '<td>' + orderStatusChip(o.status) + '</td>' +
         '<td class="r">' + orderMoney(o.income_eur, o) + '</td>' +
@@ -1503,29 +1527,29 @@ async function saveNewOrder() {
 /* ===== Быстрый ввод: заказ из текста по шаблону ===== */
 // Ключи сравниваются без учёта регистра; украинские и русские буквы приводятся к одному виду (є→е, і/ї→и).
 const QI_FIELDS = [
-  {k: 'client', label: 'Клиент', keys: ['клиент'], req: true, t: 'text'},
+  {k: 'client', label: 'Клиент', keys: ['клиент'], want: true, t: 'text'},
   {k: 'client_code', label: 'ЄДРПОУ клиента', keys: ['едрпоу клиента', 'код клиента'], t: 'code'},
-  {k: 'carrier', label: 'Перевозчик', keys: ['перевозчик', 'перевизник'], req: true, t: 'text'},
-  {k: 'carrier_code', label: 'ЄДРПОУ перевозчика', keys: ['едрпоу перевозчика', 'едрпоу перевизника', 'код перевозчика'], t: 'code'},
-  {k: 'route', label: 'Маршрут', keys: ['маршрут'], req: true, t: 'text'},
-  {k: 'start', label: 'Загрузка', keys: ['загрузка', 'завантаження'], req: true, t: 'date'},
-  {k: 'end', label: 'Выгрузка', keys: ['выгрузка', 'розвантаження'], req: true, t: 'date'},
+  {k: 'carrier', label: 'Перевозчик', keys: ['перевозчик', 'перевизник'], want: true, t: 'text'},
+  {k: 'carrier_code', label: 'ЄДРПОУ перевозчика', keys: ['едрпоу перевозчика', 'едрпоу перевизника', 'код перевозчика', 'nip перевозчика', 'vat перевозчика'], t: 'ccode'},
+  {k: 'route', label: 'Маршрут', keys: ['маршрут'], want: true, t: 'text'},
+  {k: 'start', label: 'Загрузка', keys: ['загрузка', 'завантаження'], want: true, t: 'date'},
+  {k: 'end', label: 'Выгрузка', keys: ['выгрузка', 'розвантаження'], want: true, t: 'date'},
   {k: 'cargo', label: 'Груз', keys: ['груз', 'вантаж'], t: 'text'},
   {k: 'pallets', label: 'Палет', keys: ['палет', 'палети', 'паллет'], t: 'int'},
   {k: 'weight', label: 'Вес, кг', keys: ['вес, кг', 'вес', 'вага, кг', 'вага'], t: 'num'},
   {k: 'truck', label: 'Авто', keys: ['авто', 'тягач'], t: 'text'},
   {k: 'trailer', label: 'Прицеп', keys: ['прицеп', 'причеп'], t: 'text'},
   {k: 'driver', label: 'Водитель', keys: ['водитель', 'водий'], t: 'text'},
-  {k: 'currency', label: 'Валюта', keys: ['валюта'], req: true, t: 'cur'},
+  {k: 'currency', label: 'Валюта', keys: ['валюта'], want: true, t: 'cur'},
   {k: 'income_net', label: 'Клиенту без ПДВ', keys: ['клиенту без пдв', 'клиенту без ндс'], t: 'money'},
   {k: 'income_gross', label: 'Клиенту с ПДВ', keys: ['клиенту с пдв', 'клиенту з пдв', 'клиенту с ндс'], t: 'money'},
-  {k: 'vat_client', label: 'ПДВ клиента', keys: ['пдв клиента', 'ндс клиента'], req: true, t: 'pct'},
+  {k: 'vat_client', label: 'ПДВ клиента', keys: ['пдв клиента', 'ндс клиента'], t: 'pct'},
   {k: 'cost_gross', label: 'Перевозчику с ПДВ', keys: ['перевозчику с пдв', 'перевозчику з пдв', 'перевизнику з пдв', 'перевозчику с ндс'], t: 'money'},
   {k: 'cost_net', label: 'Перевозчику без ПДВ', keys: ['перевозчику без пдв', 'перевизнику без пдв', 'перевозчику без ндс'], t: 'money'},
   {k: 'vat_carrier', label: 'ПДВ перевозчика', keys: ['пдв перевозчика', 'пдв перевизника', 'ндс перевозчика'], t: 'pct'},
-  {k: 'client_terms', label: 'Оплата клиента', keys: ['оплата клиента'], req: true, t: 'terms'},
-  {k: 'carrier_terms', label: 'Оплата перевозчику', keys: ['оплата перевозчику', 'оплата перевизнику'], req: true, t: 'terms'},
-  {k: 'client_order', label: 'Заявка клиенту', keys: ['заявка клиенту'], req: true, t: 'doc'},
+  {k: 'client_terms', label: 'Оплата клиента', keys: ['оплата клиента'], want: true, t: 'terms'},
+  {k: 'carrier_terms', label: 'Оплата перевозчику', keys: ['оплата перевозчику', 'оплата перевизнику'], want: true, t: 'terms'},
+  {k: 'client_order', label: 'Заявка клиенту', keys: ['заявка клиенту'], want: true, t: 'doc'},
   {k: 'carrier_order', label: 'Заявка перевізнику', keys: ['заявка перевизнику', 'заявка перевозчику'], t: 'text'},
   {k: 'carrier_contract', label: 'Договір з перевізником', keys: ['договир з перевизником', 'договор с перевозчиком'], t: 'text'},
   {k: 'company', label: 'Компания', keys: ['компания'], t: 'company'},
@@ -1586,7 +1610,7 @@ function qiParse(text) {
   });
   QI_FIELDS.forEach((fd) => {
     const v = raw[fd.k];
-    if (v == null || v === '') { if (fd.req && !errors[fd.k]) errors[fd.k] = 'Не заполнено'; return; }
+    if (v == null || v === '') return;
     if (errors[fd.k]) return;
     let x = v, bad = '';
     if (fd.t === 'date') { x = qiDate(v); bad = 'Нужна дата вида 18.11.2026'; }
@@ -1595,39 +1619,45 @@ function qiParse(text) {
     else if (fd.t === 'pct') { const n = qiNum(v.replace(/%$/, '')); x = n == null || n > 100 ? null : n / 100; bad = 'Нужен процент, например 20%'; }
     else if (fd.t === 'cur') { x = QI_CUR[qiFold(v)] || null; bad = 'Валюта: UAH, EUR или USD'; }
     else if (fd.t === 'terms') { x = qiTerms(v); bad = 'Нужно «14 календарных дней» или «7 банковских дней»'; }
-    else if (fd.t === 'code') { x = /^\d{6,10}$/.test(v.replace(/\s/g, '')) ? v.replace(/\s/g, '') : null; bad = 'Только цифры кода'; }
+    else if (fd.t === 'ccode') {
+      // ЄДРПОУ (только цифры) или иностранный код с буквами (NIP PL…, VAT…) — его сохраняем как есть.
+      const dg = v.replace(/\s/g, '');
+      x = /^\d{6,10}$/.test(dg) ? dg : /\d/.test(v) ? v : null; bad = 'Не похоже на код';
+      if (x != null) f.carrier_code_kind = x === dg && /^\d+$/.test(dg) ? 'edrpou' : 'tax';
+    }
+    else if (fd.t === 'code') { x = /^\d{6,10}$/.test(v.replace(/\s/g, '')) ? v.replace(/\s/g, '') : null; bad = 'Только цифры ЄДРПОУ'; }
     else if (fd.t === 'doc') { x = qiDocNo(v) ? v : null; bad = 'Не найден номер: нужно «№8 от 18.11.2026»'; }
     else if (fd.t === 'company') { x = COMPANIES.find((c) => qiFold(c) === qiFold(v)) || null; bad = 'Компания: ' + COMPANIES.join(' или '); }
     else if (fd.t === 'yesno') { const y = qiFold(v); x = /^(да|так|yes)$/.test(y) ? true : /^(нет|ни|no)$/.test(y) ? false : null; bad = 'Да или нет'; }
-    if (x == null) errors[fd.k] = bad; else f[fd.k] = x;
+    if (x == null) errors[fd.k] = 'Не распознано: ' + bad.charAt(0).toLowerCase() + bad.slice(1); else f[fd.k] = x;
   });
   if (f.route) f.route = f.route.replace(/\s*(->|—>|=>)\s*/g, ' → ');
-  if (f.start && f.end && f.end < f.start) errors.end = 'Выгрузка раньше загрузки';
-  // Суммы: клиенту и перевозчику — одна из двух (без ПДВ или с ПДВ); вторая считается по ставке ПДВ.
+  if (f.start && f.end && f.end < f.start) warnings.push('Выгрузка раньше загрузки — проверьте даты.');
+  // Суммы: клиенту и перевозчику — без ПДВ и/или с ПДВ; недостающая считается по ставке ПДВ, если ставка известна.
+  // Ничего не придумываем: нет ставки — вторая сумма остаётся пустой.
   const vatC = f.vat_client, vatK = f.vat_carrier != null ? f.vat_carrier : f.vat_client;
   const pair = (vat, keyNet, keyGross) => {
-    if (errors[keyNet] || errors[keyGross]) return null;
-    if (f[keyNet] == null && f[keyGross] == null) { errors[keyNet] = 'Укажите сумму (без ПДВ или с ПДВ)'; return null; }
-    if (vat == null) return null;
-    const n = f[keyNet] != null ? f[keyNet] : qiR2(f[keyGross] / (1 + vat));
-    const g = f[keyGross] != null ? f[keyGross] : qiR2(f[keyNet] * (1 + vat));
-    if (f[keyNet] != null && f[keyGross] != null && Math.abs(qiR2(n * (1 + vat)) - g) > 0.011) { errors[keyGross] = 'Не сходится с суммой без ПДВ и ставкой ПДВ'; return null; }
+    let n = f[keyNet] != null ? f[keyNet] : null, g = f[keyGross] != null ? f[keyGross] : null;
+    if (vat != null && n == null && g != null) n = qiR2(g / (1 + vat));
+    if (vat != null && g == null && n != null) g = qiR2(n * (1 + vat));
+    if (vat != null && f[keyNet] != null && f[keyGross] != null && Math.abs(qiR2(n * (1 + vat)) - g) > 0.011) errors[keyGross] = 'Не сходится с суммой без ПДВ и ставкой ПДВ (сохраню обе как написано)';
     return {net: n, gross: g};
   };
   const inc = pair(vatC, 'income_net', 'income_gross');
   const cost = pair(vatK, 'cost_net', 'cost_gross');
   const calc = {vat_client: vatC, vat_carrier: vatK, vat_carrier_default: f.vat_carrier == null,
-    company: f.company || NEW_ORDER_COMPANY, order_no: f.client_order ? qiDocNo(f.client_order) : null};
-  if (inc) { calc.income_net = inc.net; calc.income_gross = inc.gross; }
-  if (cost) { calc.cost_net = cost.net; calc.cost_gross = cost.gross; }
-  if (f.end && f.client_terms) calc.client_due = qiAddDays(f.end, f.client_terms.days, f.client_terms.bank);
-  if (f.end && f.carrier_terms) calc.carrier_due = qiAddDays(f.end, f.carrier_terms.days, f.carrier_terms.bank);
-  if (inc && cost) calc.res = calcDeal({tax_rate: NEW_ORDER_TAX, final_price: inc.net}, [{basis: 'fixed', cost_rate: cost.net, sale_rate: inc.net}]).billed;
-  return {f: f, raw: raw, errors: errors, warnings: warnings, calc: calc, ok: !Object.keys(errors).length};
+    company: f.company || NEW_ORDER_COMPANY, order_no: f.client_order ? qiDocNo(f.client_order) : null,
+    income_net: inc.net, income_gross: inc.gross, cost_net: cost.net, cost_gross: cost.gross,
+    client_due: f.end && f.client_terms ? qiAddDays(f.end, f.client_terms.days, f.client_terms.bank) : null,
+    carrier_due: f.end && f.carrier_terms ? qiAddDays(f.end, f.carrier_terms.days, f.carrier_terms.bank) : null};
+  if (inc.net != null || cost.net != null) calc.res = calcDeal({tax_rate: NEW_ORDER_TAX, final_price: inc.net}, [{basis: 'fixed', cost_rate: cost.net, sale_rate: inc.net}]).billed;
+  // Совсем пустой заказ (нет ни клиента, ни перевозчика, ни маршрута) создать нельзя; всё остальное можно дозаполнить потом.
+  calc.empty = !f.client && !f.carrier && !f.route;
+  return {f: f, raw: raw, errors: errors, warnings: warnings, calc: calc, ok: !calc.empty};
 }
 
 // Заметки заказа: груз, авто, водитель, документы, условия оплаты. Хранятся только в базе.
-function qiNotes(p) {
+function qiNotes(p, missing) {
   const f = p.f, out = [];
   const termsTxt = (t) => t.days + ' ' + (t.bank ? 'банковских' : 'календарных') + ' дн.';
   const cargo = [f.cargo, f.pallets != null ? f.pallets + ' палет' : '', f.weight != null ? String(f.weight).replace('.', ',') + ' кг' : ''].filter(Boolean).join(', ');
@@ -1638,8 +1668,9 @@ function qiNotes(p) {
   if (f.client_order) out.push('Заявка клиенту: ' + f.client_order);
   if (f.carrier_order) out.push('Заявка перевізнику: ' + f.carrier_order);
   if (f.carrier_contract) out.push('Договір з перевізником: ' + f.carrier_contract);
-  if (f.client_terms && f.carrier_terms) out.push('Оплата: клиент — ' + termsTxt(f.client_terms) + ', перевозчику — ' + termsTxt(f.carrier_terms) + ' после выгрузки');
-  return out.join('\n');
+  out.push('Оплата клиента: ' + (f.client_terms ? termsTxt(f.client_terms) + ' после выгрузки' : 'не указано'));
+  out.push('Оплата перевозчику: ' + (f.carrier_terms ? termsTxt(f.carrier_terms) + ' после выгрузки' : 'не указано'));
+  return setMissMark(out.join('\n'), missing || []);
 }
 // Номер заявки клиенту из заметок уже созданного заказа.
 function qiNotesOrderNo(notes) {
@@ -1650,9 +1681,16 @@ function qiNotesOrderNo(notes) {
 const QI_FORMS = /^(тов|ооо|пп|фоп|флп|ип|тзов|прат|пат|ат|зат|ват|фирма|компания|llc|ltd|gmbh|sro|s\.r\.o\.|sp\.|z|o\.o\.|приватне|пидприемство|товариство|з|обмеженою|видповидальнистю)$/;
 const qiNameKey = (s) => qiFold(s).replace(/[«»"'“”„`’]/g, ' ').split(/\s+/).filter((w) => w && !QI_FORMS.test(w)).join(' ');
 // Поиск в списке: сначала по коду, потом по названию (и юр. названию у клиентов). Возвращает {by, list}.
-function qiFind(list, name, code, codeOf, names) {
-  if (code) {
-    const byCode = list.filter((x) => String(codeOf(x) || '').replace(/\s/g, '') === code);
+// Код для сравнения: без пробелов и приставок NIP/VAT/IČO/ЄДРПОУ; «PL1234567890» совпадает и с «1234567890».
+function qiCodeKeys(s) {
+  const n = String(s || '').toUpperCase().replace(/[\s.\-:]/g, '').replace(/^(NIP|VAT|ICO|IČO|DIČ|DIC|REGON|KRS|EDRPOU|ЄДРПОУ|ЕДРПОУ)/, '');
+  if (!n) return [];
+  return /^[A-Z]{2}\d/.test(n) ? [n, n.slice(2)] : [n];
+}
+function qiFind(list, name, code, codesOf, names) {
+  const want = qiCodeKeys(code);
+  if (want.length) {
+    const byCode = list.filter((x) => (codesOf(x) || []).some((c) => qiCodeKeys(c).some((k) => want.includes(k))));
     if (byCode.length) return {by: 'code', list: byCode};
   }
   const key = qiNameKey(name);
@@ -1710,35 +1748,54 @@ function openQuickInput() {
   db.from('clients').select('id, name, legal_name, edrpou').order('name').then((r) => { if (qi) { qi.clients = r.error ? clients : r.data; qiRefresh(); } });
 }
 
-// Клиент и перевозчик из базы для разобранного текста. {id, name, isNew, ask, err, note, row}
+// Клиент и перевозчик из базы для разобранного текста.
+// client/carrier: {id, name, row, by} — есть в базе; {isNew} — будет создан; {none, why} — не привяжем (дозаполнить потом).
 function qiResolve() {
   const p = qi.p, f = p.f, out = {client: null, carrier: null};
   if (f.client && qi.clients) {
-    const m = qiFind(qi.clients, f.client, f.client_code, (c) => c.edrpou, (c) => [c.name, c.legal_name]);
-    if (m.list.length === 1) out.client = {id: m.list[0].id, name: m.list[0].name, row: m.list[0], by: m.by};
-    else {
-      const ch = qi.clientChoice;
-      if (ch === '__new') out.client = {isNew: true, name: f.client};
-      else if (ch && qi.clients.some((c) => c.id === ch)) {
-        const row = qi.clients.find((c) => c.id === ch);
-        out.client = {id: row.id, name: row.name, row: row, by: 'choice', remember: !row.legal_name};
-      } else out.client = {ask: true, many: m.list.length > 1, list: m.list.length > 1 ? m.list : qi.clients};
-    }
+    const m = qiFind(qi.clients, f.client, f.client_code, (c) => [c.edrpou], (c) => [c.name, c.legal_name]);
+    const ch = qi.clientChoice, chosen = ch && ch !== '__new' ? qi.clients.find((c) => c.id === ch) : null;
+    if (chosen) out.client = {id: chosen.id, name: chosen.name, row: chosen, by: 'choice', remember: !chosen.legal_name && qiNameKey(chosen.name) !== qiNameKey(f.client)};
+    else if (m.list.length === 1 && ch !== '__new') out.client = {id: m.list[0].id, name: m.list[0].name, row: m.list[0], by: m.by};
+    else if (m.list.length > 1 && ch !== '__new') out.client = {none: true, ask: true, many: true, list: m.list, why: 'в базе несколько похожих клиентов'};
+    else out.client = {isNew: true, name: f.client, ask: ch !== '__new', list: qi.clients};
   }
   if (f.carrier) {
     const code = f.carrier_code;
-    const m = qiFind(carriers, f.carrier, code, carrierCode, (c) => [c.name]);
-    if (m.list.length === 1) {
-      const c = m.list[0], has = String(carrierCode(c) || '').replace(/\s/g, '');
-      if (m.by === 'name' && code && has && has !== code) out.carrier = {err: 'В базе уже есть «' + c.name + '» с кодом ' + has + ', а в тексте ' + code + '. Проверьте ЄДРПОУ.'};
-      else out.carrier = {id: c.id, name: c.name, row: c, by: m.by, fillCode: code && !has ? code : null};
-    } else if (m.list.length > 1) {
-      const ch = qi.carrierChoice, row = m.list.find((c) => c.id === ch);
-      out.carrier = row ? {id: row.id, name: row.name, row: row, by: 'choice'} : {ask: true, list: m.list};
-    } else out.carrier = {isNew: true, name: f.carrier, code: code || null};
-    if (out.carrier.row && vetReady && vetOf(out.carrier.row) === 'blocked') out.carrier.err = 'Перевозчик «' + out.carrier.name + '» заблокирован СБ. Такой заказ создайте через обычную форму «+ Новый заказ».';
+    const m = qiFind(carriers, f.carrier, code, (c) => [c.edrpou, c.reg_code], (c) => [c.name]);
+    const ch = qi.carrierChoice, chosen = ch ? m.list.find((c) => c.id === ch) : null;
+    if (m.list.length === 1 || chosen) {
+      const c = chosen || m.list[0], has = carrierCode(c);
+      out.carrier = {id: c.id, name: c.name, row: c, by: chosen ? 'choice' : m.by, hasCode: !!has};
+      if (code && !has) out.carrier.fillCode = code;
+      else if (code && has && m.by !== 'code' && !qiCodeKeys(has).some((k) => qiCodeKeys(code).includes(k))) out.carrier.codeNote = 'В базе код ' + has + ', в тексте ' + code + '. Оставлю код из базы — проверьте.';
+    } else if (m.list.length > 1) out.carrier = {none: true, ask: true, list: m.list, why: 'в базе несколько похожих контрагентов'};
+    else out.carrier = {isNew: true, name: f.carrier, code: code || null, hasCode: !!code};
+    if (out.carrier.row && vetReady && vetOf(out.carrier.row) === 'blocked') out.carrier = {none: true, blocked: true, name: out.carrier.name, why: 'заблокирован СБ — к заказу не привяжу; привяжите в карточке заказа с указанием причины'};
   }
   return out;
+}
+
+// Что не заполнено. Эти названия сохраняются в заметках заказа (строка «Дозаполнить: …») и проверяются в карточке.
+function qiMissing(p, res, fx) {
+  const f = p.f, c = p.calc, miss = [];
+  const add = (label, cond) => { if (cond) miss.push(label); };
+  add('Клиент', !f.client || (res.client && res.client.none));
+  add('Перевозчик', !f.carrier || (res.carrier && res.carrier.none));
+  add('ЄДРПОУ перевозчика', f.carrier && res.carrier && !res.carrier.none && !res.carrier.hasCode && !f.carrier_code);
+  add('Маршрут', !f.route);
+  add('Загрузка', !f.start);
+  add('Выгрузка', !f.end);
+  add('Валюта', !f.currency);
+  add('Курс к EUR', f.currency && f.currency !== 'EUR' && !fx);
+  add('Доход', c.income_net == null);
+  add('Выставлено клиенту', c.income_net != null && c.income_gross == null);
+  add('Расход', c.cost_net == null);
+  add('К оплате перевозчику', c.cost_net != null && c.cost_gross == null);
+  add('Оплата клиента', !c.client_due);
+  add('Оплата перевозчику', !c.carrier_due);
+  add('Номер заявки клиенту', !c.order_no);
+  return miss;
 }
 
 async function qiRefresh() {
@@ -1786,52 +1843,52 @@ function qiDraw() {
   if (!box || !qi.p) return;
   const p = qi.p, f = p.f, c = p.calc, e = p.errors, cur = f.currency;
   if (!qi.text.trim()) { box.innerHTML = ''; $('qiCreate').disabled = true; return; }
-  const res = qiResolve(), fx = qiFx();
-  const m = (n) => cur ? money(n, cur) : esc(n);
-  const meq = (n, extra) => (n == null || !cur) ? '—' : m(n) + (extra || '') + (cur !== 'EUR' && fx ? ' <span class="eq">≈ ' + money(n * fx, 'EUR') + '</span>' : '');
-  const blockers = [];
-  const row = (label, k, html) => {
-    const err = k && e[k];
-    if (err) blockers.push(label);
-    return '<tr' + (err ? ' class="qibad"' : '') + '><td>' + esc(label) + '</td><td>' + (err ? '<strong>' + esc(err) + '</strong>' + (p.raw[k] ? ' <span class="muted">(' + esc(p.raw[k]) + ')</span>' : '') : html) + '</td></tr>';
+  const res = qiResolve(), fx = qiFx(), miss = qiMissing(p, res, fx);
+  const m = (n) => money(n, cur || 'EUR');
+  const meq = (n, extra) => n == null ? '' : m(n) + (extra || '') + (cur && cur !== 'EUR' && fx ? ' <span class="eq">≈ ' + money(n * fx, 'EUR') + '</span>' : '');
+  const unk = [];   // не распознано
+  // Строка предпросмотра. Красная, если поле не заполнено (label из списка miss) или не распознано (ошибка разбора по ключу k).
+  const row = (label, k, html, missLabel) => {
+    const err = k && e[k], isMiss = missLabel && miss.includes(missLabel);
+    if (err) unk.push(label);
+    const body = err ? '<strong>' + esc(err) + '</strong>' + (p.raw[k] ? ' <span class="muted">(' + esc(p.raw[k]) + ')</span>' : '') + (html ? '<div>' + html + '</div>' : '')
+      : (html || (isMiss ? '<strong>не указано</strong>' : '—'));
+    return '<tr' + (err || isMiss ? ' class="qibad"' : '') + '><td>' + esc(label) + '</td><td>' + body + '</td></tr>';
   };
-  const terms = (t, due) => t ? esc(t.days + ' ' + (t.bank ? 'банковских' : 'календарных') + ' дн. после выгрузки') + ' → <strong>' + fdate(due) + '</strong>' : '';
+  const terms = (t, due) => t ? esc(t.days + ' ' + (t.bank ? 'банковских' : 'календарных') + ' дн. после выгрузки') + (due ? ' → <strong>' + fdate(due) + '</strong>' : ' → <strong>дата появится, когда будет указана выгрузка</strong>') : '';
   // Клиент
-  let clientHtml = esc(f.client || ''), clientBad = false;
-  if (f.client && !qi.clients) clientHtml += ' <span class="muted">— ищу в базе…</span>';
-  else if (res.client && res.client.ask) {
-    clientBad = true;
-    clientHtml += '<div class="sub" style="margin:4px 0">' + (res.client.many ? 'В базе несколько похожих клиентов. Выберите нужного:' : 'Такого клиента нет в базе. Это кто-то из существующих или новый клиент?') + '</div>' +
-      '<select id="qiClientSel"><option value="">— выберите —</option>' + res.client.list.map((x) => '<option value="' + esc(x.id) + '">' + esc(x.name) + (x.legal_name ? ' (' + esc(x.legal_name) + ')' : '') + '</option>').join('') +
-      (res.client.many ? '' : '<option value="__new">+ Создать нового клиента «' + esc(f.client) + '»</option>') + '</select>';
-  } else if (res.client && res.client.isNew) clientHtml += ' <span class="chip warn">будет создан</span> <a href="#" id="qiClientRe">изменить</a>';
-  else if (res.client) {
-    clientHtml = '<strong>' + esc(res.client.name) + '</strong> <span class="chip">есть в базе</span>' + (res.client.by === 'choice' ? ' <a href="#" id="qiClientRe">изменить</a>' : '') +
-      (qiNameKey(res.client.name) !== qiNameKey(f.client) ? '<div class="sub">В тексте: «' + esc(f.client) + '»</div>' : '') +
-      (res.client.remember ? '<div class="sub">Запомню: «' + esc(f.client) + '» = ' + esc(res.client.name) + ' (запишу как юр. название клиента). В следующий раз выберется сам.</div>' : '');
+  let clientHtml = '';
+  const cl = res.client;
+  if (f.client && !qi.clients) clientHtml = esc(f.client) + ' <span class="muted">— ищу в базе…</span>';
+  else if (cl && cl.id) {
+    clientHtml = '<strong>' + esc(cl.name) + '</strong> <span class="chip">есть в базе</span>' + (cl.by === 'choice' ? ' <a href="#" id="qiClientRe">изменить</a>' : '') +
+      (qiNameKey(cl.name) !== qiNameKey(f.client) ? '<div class="sub">В тексте: «' + esc(f.client) + '»</div>' : '') +
+      (cl.remember ? '<div class="sub">Запомню: «' + esc(f.client) + '» = ' + esc(cl.name) + ' (запишу как юр. название клиента). В следующий раз выберется сам.</div>' : '');
+  } else if (cl) {
+    clientHtml = esc(f.client) + (cl.isNew ? ' <span class="chip warn">будет создан</span>' : ' <span class="chip warn">не привяжу: ' + esc(cl.why) + '</span>') +
+      (cl.ask ? '<div class="sub" style="margin:4px 0">' + (cl.many ? 'Выберите нужного клиента, иначе заказ создам без клиента:' : 'Такого клиента нет в базе. Если это кто-то из существующих — выберите, иначе будет создан новый:') + '</div>' +
+        '<select id="qiClientSel"><option value="">' + (cl.many ? '— не выбран —' : '— новый клиент «' + esc(f.client) + '» —') + '</option>' + cl.list.map((x) => '<option value="' + esc(x.id) + '">' + esc(x.name) + (x.legal_name ? ' (' + esc(x.legal_name) + ')' : '') + '</option>').join('') + '</select>'
+        : ' <a href="#" id="qiClientRe">изменить</a>');
   }
-  if (clientBad) blockers.push('Клиент');
   // Перевозчик
-  let carHtml = esc(f.carrier || ''), carBad = false;
+  let carHtml = '';
   const cr = res.carrier;
-  if (cr && cr.err) { carBad = true; carHtml = '<strong>' + esc(cr.err) + '</strong>'; }
-  else if (cr && cr.ask) {
-    carBad = true;
-    carHtml += '<div class="sub" style="margin:4px 0">В базе несколько похожих контрагентов. Выберите нужного:</div><select id="qiCarSel"><option value="">— выберите —</option>' +
-      cr.list.map((x) => '<option value="' + esc(x.id) + '">' + esc(x.name) + (carrierCode(x) ? ' (' + esc(carrierCode(x)) + ')' : '') + '</option>').join('') + '</select>';
-  } else if (cr && cr.isNew) carHtml += ' <span class="chip warn">будет создан</span><div class="sub">Новый контрагент: тип «Перевозчик», валюта ' + esc(cur || '—') + (cr.code ? ', ЄДРПОУ ' + esc(cr.code) : '') + (c.vat_carrier > 0 ? ', заметка «платник ПДВ»' : '') + '</div>';
-  else if (cr) carHtml = '<strong>' + esc(cr.name) + '</strong> <span class="chip">есть в базе</span>' + (cr.by === 'code' ? ' <span class="muted">найден по ЄДРПОУ</span>' : '') + (cr.fillCode ? '<div class="sub">Допишу ЄДРПОУ ' + esc(cr.fillCode) + ' в карточку контрагента.</div>' : '');
-  if (carBad) blockers.push('Перевозчик');
+  if (cr && cr.id) carHtml = '<strong>' + esc(cr.name) + '</strong> <span class="chip">есть в базе</span>' + (cr.by === 'code' ? ' <span class="muted">найден по коду</span>' : '') +
+    (cr.fillCode ? '<div class="sub">Допишу код ' + esc(cr.fillCode) + ' в карточку контрагента.</div>' : '') + (cr.codeNote ? '<div class="sub">' + esc(cr.codeNote) + '</div>' : '');
+  else if (cr && cr.isNew) carHtml = esc(f.carrier) + ' <span class="chip warn">будет создан</span><div class="sub">Новый контрагент: тип «Перевозчик», валюта ' + esc(cur || 'EUR') +
+    (cr.code ? (f.carrier_code_kind === 'tax' ? ', код ' + esc(cr.code) + ' (сохраню как есть)' : ', ЄДРПОУ ' + esc(cr.code)) : '') + (c.vat_carrier > 0 ? ', заметка «платник ПДВ»' : '') + '</div>';
+  else if (cr) carHtml = esc(f.carrier) + ' <span class="chip warn">не привяжу: ' + esc(cr.why) + '</span>' +
+    (cr.ask ? '<div class="sub" style="margin:4px 0">Выберите нужного:</div><select id="qiCarSel"><option value="">— не выбран —</option>' +
+      cr.list.map((x) => '<option value="' + esc(x.id) + '">' + esc(x.name) + (carrierCode(x) ? ' (' + esc(carrierCode(x)) + ')' : '') + '</option>').join('') + '</select>' : '');
   // Курс
   let fxHtml = '';
   if (cur && cur !== 'EUR') {
     const need = !fx;
-    if (need) blockers.push('Курс к EUR');
     fxHtml = '<tr' + (need ? ' class="qibad"' : '') + '><td>Курс к EUR</td><td>' +
       (qi.rate === undefined && f.start ? '<span class="muted">запрашиваю курс НБУ…</span>' :
         (qi.rate ? 'НБУ на ' + fdate(f.start) + ': ' + esc(qiRateNote[cur + f.start] || '') + ' → <strong>' + String(qi.rate).replace('.', ',') + '</strong>' :
-          (f.start ? '<strong>Курса НБУ на ' + fdate(f.start) + ' нет</strong> (дата ещё не наступила или нет связи). Введите курс вручную:' : 'Нужна дата загрузки'))) +
-      (qi.rate === null || qi.fxManual != null ? '<input id="qiFx" inputmode="decimal" style="max-width:160px;margin-top:6px" placeholder="' + (FX_PLACEHOLDER[cur] || '') + '" value="' + (qi.fxManual != null ? String(qi.fxManual).replace('.', ',') : '') + '">' : '') +
+          (f.start ? '<strong>Курса НБУ на ' + fdate(f.start) + ' нет</strong> (дата ещё не наступила или нет связи). Можно ввести вручную или указать потом в карточке:' : '<strong>не указано</strong> — курс возьму по дате загрузки, когда она будет. Можно ввести вручную:'))) +
+      (qi.rate == null || qi.fxManual != null ? '<input id="qiFx" inputmode="decimal" style="max-width:160px;margin-top:6px" placeholder="' + (FX_PLACEHOLDER[cur] || '') + '" value="' + (qi.fxManual != null ? String(qi.fxManual).replace('.', ',') : '') + '">' : '') +
       '</td></tr>';
   }
   const docs = [f.client_order ? 'Заявка клиенту: ' + f.client_order : '', f.carrier_order ? 'Заявка перевізнику: ' + f.carrier_order : '', f.carrier_contract ? 'Договір з перевізником: ' + f.carrier_contract : ''].filter(Boolean);
@@ -1840,39 +1897,44 @@ function qiDraw() {
   const r = c.res;
   box.innerHTML =
     '<table class="qit"><tbody>' +
-    row('Клиент', 'client', clientHtml).replace('<tr>', clientBad ? '<tr class="qibad">' : '<tr>') +
-    row('Перевозчик', 'carrier', carHtml).replace('<tr>', carBad ? '<tr class="qibad">' : '<tr>') +
-    (e.carrier_code ? row('ЄДРПОУ перевозчика', 'carrier_code', '') : '') + (e.client_code ? row('ЄДРПОУ клиента', 'client_code', '') : '') +
-    row('Маршрут', 'route', esc(f.route || '')) +
-    row('Загрузка', 'start', fdate(f.start)) + row('Выгрузка', 'end', fdate(f.end)) +
-    (cargo || e.pallets || e.weight ? row('Груз', e.pallets ? 'pallets' : e.weight ? 'weight' : null, esc(cargo)) : '') +
+    row('Клиент', 'client', clientHtml, 'Клиент') +
+    row('Перевозчик', 'carrier', carHtml, 'Перевозчик') +
+    row('ЄДРПОУ / код перевозчика', 'carrier_code', f.carrier_code ? esc(f.carrier_code) : (cr && cr.hasCode ? '<span class="muted">есть в карточке контрагента</span>' : ''), 'ЄДРПОУ перевозчика') +
+    (e.client_code ? row('ЄДРПОУ клиента', 'client_code', '') : '') +
+    row('Маршрут', 'route', esc(f.route || ''), 'Маршрут') +
+    row('Загрузка', 'start', f.start ? fdate(f.start) : '', 'Загрузка') + row('Выгрузка', 'end', f.end ? fdate(f.end) : '', 'Выгрузка') +
+    (cargo || e.pallets || e.weight || e.cargo ? row('Груз', e.pallets ? 'pallets' : e.weight ? 'weight' : null, esc(cargo)) : '') +
     (f.truck || f.trailer ? row('Авто / прицеп', null, esc([f.truck, f.trailer].filter(Boolean).join(' / '))) : '') +
     (f.driver ? row('Водитель', null, esc(f.driver) + ' <span class="muted">(только в заметках заказа)</span>') : '') +
-    row('Валюта', 'currency', esc(cur || '')) + fxHtml +
+    row('Валюта', 'currency', esc(cur || '') + (!cur ? '<strong>не указано</strong> — сохраню как EUR, поменяйте в карточке' : ''), 'Валюта') + fxHtml +
     row('Компания', 'company', esc(c.company)) +
     (e.excise ? row('Акцизный груз', 'excise', '') : '') +
     '</tbody></table>' +
     '<h3 class="qih">Деньги</h3><table class="qit"><tbody>' +
-    row('Доход (клиенту без ПДВ)', e.income_net ? 'income_net' : e.vat_client ? 'vat_client' : null, meq(c.income_net)) +
-    row('Выставлено клиенту (с ПДВ)', e.income_gross ? 'income_gross' : null, meq(c.income_gross, esc(vatTxt(c.vat_client)))) +
-    row('Расход (перевозчику без ПДВ)', e.cost_net ? 'cost_net' : e.vat_carrier ? 'vat_carrier' : null, meq(c.cost_net)) +
-    row('К оплате перевозчику (с ПДВ)', e.cost_gross ? 'cost_gross' : null, meq(c.cost_gross, esc(vatTxt(c.vat_carrier)) + (c.vat_carrier_default && c.vat_carrier != null ? ' <span class="muted">ставка как у клиента</span>' : ''))) +
+    row('Доход (клиенту без ПДВ)', 'income_net', meq(c.income_net) + (c.income_net == null && c.income_gross != null && c.vat_client == null ? '<div class="sub">Без ПДВ не посчитать: не указана ставка «ПДВ клиента».</div>' : ''), 'Доход') +
+    row('Выставлено клиенту (с ПДВ)', 'income_gross', c.income_gross != null ? meq(c.income_gross, esc(vatTxt(c.vat_client))) : '', 'Выставлено клиенту') +
+    (e.vat_client ? row('ПДВ клиента', 'vat_client', '') : '') +
+    row('Расход (перевозчику без ПДВ)', 'cost_net', meq(c.cost_net) + (c.cost_net == null && c.cost_gross != null && c.vat_carrier == null ? '<div class="sub">Без ПДВ не посчитать: добавьте строку «ПДВ перевозчика: 0%» (или нужную ставку).</div>' : ''), 'Расход') +
+    row('К оплате перевозчику (с ПДВ)', 'cost_gross', c.cost_gross != null ? meq(c.cost_gross, esc(vatTxt(c.vat_carrier)) + (c.vat_carrier_default && c.vat_carrier != null ? ' <span class="muted">ставка как у клиента</span>' : '')) : (c.cost_net != null && c.vat_carrier == null ? '<strong>не указано</strong><div class="sub">С ПДВ не посчитать: не указана ставка. Если перевозчик без ПДВ — добавьте строку «ПДВ перевозчика: 0%».</div>' : ''), 'К оплате перевозчику') +
+    (e.vat_carrier ? row('ПДВ перевозчика', 'vat_carrier', '') : '') +
     (r ? '<tr><td>Разница</td><td>' + meq(r.diff) + '</td></tr><tr><td>Налог ' + pct(NEW_ORDER_TAX) + ' с разницы</td><td>' + meq(r.tax) + '</td></tr>' +
-      '<tr><td><strong>Чистая прибыль</strong></td><td class="' + (r.profit >= 0 ? 'pos' : 'neg') + '">' + meq(r.profit) + '</td></tr>' : '') +
-    row('Оплата клиента', 'client_terms', terms(f.client_terms, c.client_due)) +
-    row('Оплата перевозчику', 'carrier_terms', terms(f.carrier_terms, c.carrier_due)) +
+      '<tr><td><strong>Чистая прибыль</strong></td><td class="' + (r.profit >= 0 ? 'pos' : 'neg') + '">' + meq(r.profit) + (miss.includes('Доход') || miss.includes('Расход') ? '<div class="sub">Предварительно: не все суммы указаны.</div>' : '') + '</td></tr>' : '') +
+    row('Оплата клиента', 'client_terms', terms(f.client_terms, c.client_due), 'Оплата клиента') +
+    row('Оплата перевозчику', 'carrier_terms', terms(f.carrier_terms, c.carrier_due), 'Оплата перевозчику') +
     '</tbody></table>' +
     '<h3 class="qih">Документы</h3><table class="qit"><tbody>' +
-    row('Номер заявки клиенту', 'client_order', esc(c.order_no || '')) +
+    row('Номер заявки клиенту', 'client_order', esc(c.order_no || ''), 'Номер заявки клиенту') +
     (docs.length ? '<tr><td>В заметки</td><td>' + docs.map(esc).join('<br>') + '</td></tr>' : '') +
     '</tbody></table>' +
-    (qi.dup && qi.dup.id ? '<div class="badbox">Такой заказ уже есть: «' + esc(qi.dup.title) + '» (тот же клиент, дата загрузки и заявка №' + esc(c.order_no) + '). Второй раз создавать не буду. <a href="#/deal/' + esc(qi.dup.id) + '" id="qiDupLink">Открыть заказ</a></div>' : '') +
-    (qi.dup && qi.dup.err ? '<div class="badbox">Не удалось проверить дубли: ' + esc(qi.dup.err) + '</div>' : '') +
+    (qi.dup && qi.dup.id ? '<div class="badbox">Похоже, такой заказ уже есть: «' + esc(qi.dup.title) + '» (тот же клиент, дата загрузки и заявка №' + esc(c.order_no) + '). <a href="#/deal/' + esc(qi.dup.id) + '" id="qiDupLink">Открыть заказ</a>. Если всё равно создать — спрошу подтверждение.</div>' : '') +
+    (qi.dup && qi.dup.err ? '<div class="warnbox">Не удалось проверить дубли: ' + esc(qi.dup.err) + '</div>' : '') +
     (p.warnings.length ? '<div class="warnbox">' + p.warnings.map(esc).join('<br>') + '</div>' : '') +
-    (blockers.length ? '<div class="badbox">Проверьте выделенные поля: ' + esc(Array.from(new Set(blockers)).join(', ')) + '. Пока они не исправлены, заказ не создать.</div>' : '');
-  const ready = p.ok && !blockers.length && !(qi.dup && (qi.dup.id || qi.dup.err)) && qi.clients && (!cur || cur === 'EUR' || qi.rate !== undefined || qi.fxManual != null) &&
-    !(res.client && res.client.id && p.f.start && c.order_no && qi.dupFor !== res.client.id + '|' + p.f.start + '|' + c.order_no);
-  $('qiCreate').disabled = !ready;
+    (c.empty ? '<div class="badbox">Укажите хотя бы клиента, перевозчика или маршрут — совсем пустой заказ создать нельзя.</div>'
+      : (miss.length || unk.length ? '<div class="warnbox">Не заполнено: ' + esc(Array.from(new Set(miss.concat(unk.map((x) => x + ' (не распознано)')))).join(', ')) + '. Заказ будет создан, данные можно дополнить позже.</div>' : ''));
+  // Ждём только то, что занимает секунду: список клиентов, курс НБУ и проверку дубля.
+  const waiting = !qi.clients || (cur && cur !== 'EUR' && f.start && qi.rate === undefined && qi.fxManual == null) ||
+    (cl && cl.id && f.start && c.order_no && qi.dupFor !== cl.id + '|' + f.start + '|' + c.order_no);
+  $('qiCreate').disabled = !!(c.empty || waiting);
   if ($('qiClientSel')) $('qiClientSel').onchange = (ev) => { qi.clientChoice = ev.target.value; qiRefresh(); };
   if ($('qiCarSel')) $('qiCarSel').onchange = (ev) => { qi.carrierChoice = ev.target.value; qiRefresh(); };
   if ($('qiClientRe')) $('qiClientRe').onclick = (ev) => { ev.preventDefault(); qi.clientChoice = ''; qiRefresh(); };
@@ -1891,41 +1953,56 @@ async function qiCreate() {
   await qiCheckDup();
   qiDraw();
   if ($('qiCreate').disabled) { btn.textContent = 'Создать'; return; }
+  if (qi.dup && qi.dup.id && !confirm('Похоже, такой заказ уже есть: «' + qi.dup.title + '». Всё равно создать ещё один?')) { btn.disabled = false; btn.textContent = 'Создать'; return; }
   btn.disabled = true; btn.textContent = 'Создаю...';
-  const p = qi.p, f = p.f, c = p.calc, res = qiResolve(), fx = qiFx();
+  const p = qi.p, f = p.f, c = p.calc, res = qiResolve(), fx = qiFx(), miss = qiMissing(p, res, fx);
+  const cur = f.currency || 'EUR';
   let newId = null;
   try {
-    // Клиент
-    let cid = res.client.id;
-    if (res.client.isNew) {
-      const r = await db.from('clients').insert({name: f.client, edrpou: f.client_code || null}).select('id').single();
-      if (r.error) throw r.error;
-      cid = r.data.id;
-    } else {
+    // Клиент: есть в базе — берём; новый — создаём; не определён — заказ без клиента.
+    let cid = null;
+    if (res.client && res.client.id) {
+      cid = res.client.id;
       const upd = {};
       if (res.client.remember) upd.legal_name = f.client;
       if (f.client_code && !res.client.row.edrpou) upd.edrpou = f.client_code;
       if (Object.keys(upd).length) { const r = await db.from('clients').update(upd).eq('id', cid); if (r.error) throw r.error; }
+    } else if (res.client && res.client.isNew) {
+      const r = await db.from('clients').insert({name: f.client, edrpou: f.client_code || null}).select('id').single();
+      if (r.error) throw r.error;
+      cid = r.data.id;
     }
-    // Перевозчик
-    let kid = res.carrier.id;
-    if (res.carrier.isNew) {
-      const code = f.carrier_code || null;
-      const row = {name: f.carrier, type: 'carrier', currency: f.currency, edrpou: code, notes: c.vat_carrier > 0 ? 'платник ПДВ' : null};
-      if (vetReady) Object.assign(row, {country: code ? 'UA' : null, reg_code: code});
+    // Перевозчик. ЄДРПОУ (цифры) пишем в ЄДРПОУ; код с буквами (NIP PL…) — как есть в поле кода (reg_code).
+    let kid = null;
+    const code = f.carrier_code || null, isTax = f.carrier_code_kind === 'tax';
+    const codeFields = (cd) => {
+      if (!cd) return {};
+      if (!isTax) return vetReady ? {edrpou: cd, reg_code: cd} : {edrpou: cd};
+      const k = qiCodeKeys(cd)[0] || '';
+      return vetReady ? {reg_code: cd, country: /^[A-Z]{2}\d/.test(k) ? k.slice(0, 2) : null} : {};
+    };
+    if (res.carrier && res.carrier.id) {
+      kid = res.carrier.id;
+      if (res.carrier.fillCode && Object.keys(codeFields(res.carrier.fillCode)).length) {
+        const upd = codeFields(res.carrier.fillCode);
+        if (res.carrier.row.country) delete upd.country;
+        const r = await db.from('carriers').update(upd).eq('id', kid);
+        if (r.error) throw r.error;
+      }
+    } else if (res.carrier && res.carrier.isNew) {
+      const notes = [c.vat_carrier > 0 ? 'платник ПДВ' : '', isTax && !vetReady && code ? 'Код: ' + code : ''].filter(Boolean).join('\n') || null;
+      const row = Object.assign({name: f.carrier, type: 'carrier', currency: cur, edrpou: null, notes: notes}, codeFields(code));
+      if (vetReady && !isTax && code) row.country = 'UA';
       const r = await db.from('carriers').insert(row).select('id').single();
       if (r.error) throw r.error;
       kid = r.data.id;
-    } else if (res.carrier.fillCode) {
-      const r = await db.from('carriers').update(vetReady ? {edrpou: res.carrier.fillCode, reg_code: res.carrier.fillCode} : {edrpou: res.carrier.fillCode}).eq('id', kid);
-      if (r.error) throw r.error;
     }
-    // Заказ (быстрый режим) и одна строка «Перевозка»
+    // Заказ (быстрый режим) и одна строка «Перевозка». Пустое — пусто, без придуманных значений.
     const d = await db.from('deals').insert({
-      title: f.route, client_id: cid, status: 'active', tax_rate: NEW_ORDER_TAX, company: c.company,
-      start_date: f.start, end_date: f.end, currency: f.currency, fx_to_eur: f.currency === 'EUR' ? 1 : fx,
+      title: f.route || QI_NO_ROUTE, client_id: cid, status: 'active', tax_rate: NEW_ORDER_TAX, company: c.company,
+      start_date: f.start || null, end_date: f.end || null, currency: cur, fx_to_eur: cur === 'EUR' ? 1 : (fx || 1),
       final_price: c.income_net, qty_marks: 0, qty_stickers: 0, pallets: f.pallets == null ? null : f.pallets,
-      notes: qiNotes(p) || null, client_invoice_amount: c.income_gross, client_due_date: c.client_due,
+      notes: qiNotes(p, miss) || null, client_invoice_amount: c.income_gross, client_due_date: c.client_due,
       ...(vetReady ? {cargo_excise: !!f.excise, cargo_value_eur: null} : {})
     }).select('id').single();
     if (d.error) throw d.error;
@@ -1938,12 +2015,60 @@ async function qiCreate() {
     if (!k.error) carriers = k.data;
     await loadOrders();
     $('modalRoot').innerHTML = ''; qi = null;
-    ordersOkMsg = 'Заказ «' + f.route + '» создан через быстрый ввод.';
+    ordersOkMsg = 'Заказ «' + (f.route || QI_NO_ROUTE) + '» создан через быстрый ввод.' + (miss.length ? ' Не заполнено: ' + miss.join(', ') + '.' : '');
     if (location.hash === '#/orders') renderOrders(true); else location.hash = '#/orders';
   } catch (err) {
     fail('Не удалось создать: ' + err.message);
   }
 }
+
+/* ----- Неполные данные: строка «Дозаполнить: …» в заметках заказа ----- */
+// Список ставит быстрый ввод. Поле пропадает из списка, как только его заполнили в карточке; пустой список — пометка исчезает.
+const QI_NO_ROUTE = 'Без маршрута';
+const MISS_MARK = 'Дозаполнить:';
+const lineCarrier = (l) => carriers.find((x) => x.id === l.carrier_id);
+const MISS_CHECKS = {
+  'Клиент': (d) => !!(d.client_id || String(d.client_name || '').trim()),
+  'Перевозчик': (d, ls) => ls.some((l) => l.carrier_id),
+  'ЄДРПОУ перевозчика': (d, ls) => ls.some((l) => { const c = lineCarrier(l); return c && !!carrierCode(c); }),
+  'Маршрут': (d) => !!String(d.title || '').trim() && d.title !== QI_NO_ROUTE,
+  'Загрузка': (d) => !!d.start_date,
+  'Выгрузка': (d) => !!d.end_date,
+  'Валюта': () => false,   // снимается при сохранении карточки (валюта видна и выбрана)
+  'Курс к EUR': (d) => dealCur(d) === 'EUR' || (Number(d.fx_to_eur) > 0 && Number(d.fx_to_eur) !== 1),
+  'Доход': (d) => d.final_price != null && d.final_price !== '',
+  'Выставлено клиенту': (d) => d.client_invoice_amount != null && d.client_invoice_amount !== '',
+  'Расход': (d, ls) => ls.some((l) => l.cost_rate != null && l.cost_rate !== ''),
+  'К оплате перевозчику': (d, ls) => ls.some((l) => l.payable_amount != null && l.payable_amount !== ''),
+  'Оплата клиента': (d) => !!d.client_due_date,
+  'Оплата перевозчику': (d, ls) => ls.some((l) => l.due_date),
+  'Номер заявки клиенту': (d) => !!qiNotesOrderNo(d.notes)
+};
+function missMarkLabels(notes) {
+  const line = String(notes || '').split('\n').find((l) => l.trim().startsWith(MISS_MARK));
+  return line ? line.trim().slice(MISS_MARK.length).split(',').map((x) => x.trim()).filter(Boolean) : [];
+}
+// Что из отмеченного всё ещё не заполнено.
+const missOf = (d, lines) => missMarkLabels(d.notes).filter((l) => !(MISS_CHECKS[l] && MISS_CHECKS[l](d, lines || [])));
+function setMissMark(notes, list) {
+  const rest = String(notes || '').split('\n').filter((l) => !l.trim().startsWith(MISS_MARK));
+  return (list.length ? [MISS_MARK + ' ' + list.join(', ')] : []).concat(rest).join('\n').trim();
+}
+// Номер заявки клиенту в заметках: меняем только номер в строке «Заявка клиенту: …», остальное не трогаем.
+function setNotesOrderNo(notes, no) {
+  no = String(no || '').trim();
+  const lines = String(notes || '').split('\n').filter((l, i, a) => !(l === '' && i === a.length - 1 && a.length === 1));
+  const i = lines.findIndex((l) => /^заявка клиенту:/i.test(l.trim()));
+  const re = /(№|\bN[oº°]?\.?)\s*[0-9A-Za-zА-Яа-яЁёІіЇїЄєҐґ/\-.]+/;
+  if (i < 0) { if (no) lines.push('Заявка клиенту: №' + no); return lines.join('\n'); }
+  let l = lines[i];
+  if (re.test(l)) l = l.replace(re, no ? '№' + no : '').replace(/\s{2,}/g, ' ');
+  else if (no) l = l.replace(/^(\s*заявка клиенту:)\s*/i, '$1 №' + no + ' ');
+  l = l.trim();
+  if (/^заявка клиенту:\s*$/i.test(l)) lines.splice(i, 1); else lines[i] = l;
+  return lines.join('\n');
+}
+const missChip = (list) => list.length ? '<span class="chip warn" title="Не заполнено: ' + esc(list.join(', ')) + '">Неполные данные</span>' : '';
 
 /* ===== Контрагенты и финансы ===== */
 const CARRIER_TYPES = {carrier: 'Перевозчик', warehouse: 'Склад', insurer: 'Страховая', broker: 'Брокер', other: 'Другое'};
