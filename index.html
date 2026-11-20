@@ -79,6 +79,9 @@ label{font-size:13px;font-weight:500;display:block;margin-bottom:6px}
 input,select,textarea{width:100%;padding:11px 12px;font-size:14px;font-family:inherit;color:var(--ink);background:#fff;border:1px solid var(--field);border-radius:8px}
 .f2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .err{background:#FCEBEB;color:#9B1C1C;border-radius:8px;padding:10px 14px;font-size:13px}
+.loadfail{background:#FCEBEB;color:#9B1C1C;border:1px solid #F3C4C4;border-radius:12px;padding:20px 22px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin:8px 0}
+.loadfail strong{display:block;font-size:16px;margin-bottom:4px}
+.loadfail .code{font-size:12px;opacity:.8;font-family:ui-monospace,Menlo,monospace}
 .overlay{position:fixed;inset:0;background:rgba(20,33,61,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
 .modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:560px;max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:14px}
 .modal h2{margin:0;font-size:20px}
@@ -291,7 +294,76 @@ ul.plain{margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.5}
 <script>
 const SUPABASE_URL = 'https://imwfzjeewbfseexumard.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_bz86mNhG0gcyqr67nFhq1Q_9FG6hhaz';
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+/* ----- Защита загрузки данных -----
+   Все запросы к базе идут через sbFetch: ждём ответа не дольше 15 секунд,
+   а если сессия закончилась, отправляем на экран входа. */
+const LOAD_TIMEOUT_MS = 15000;
+const FAIL_CODES = ['TIMEOUT', 'NETWORK', 'NO_SESSION'];
+const codedError = (code, msg) => Object.assign(new Error(msg), {name: code, code: code});
+async function sbFetch(input, init) {
+  init = init || {};
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  const isData = url.indexOf('/rest/v1/') !== -1;
+  if (isData) {
+    // Без сессии база отдаёт пустые списки вместо ошибки. Считаем это выходом из системы.
+    const auth = new Headers(init.headers || (input && input.headers) || {}).get('Authorization') || '';
+    if (!auth || auth === 'Bearer ' + SUPABASE_KEY) { sessionExpired(); throw codedError('NO_SESSION', 'Сессия истекла'); }
+  }
+  const ctrl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, LOAD_TIMEOUT_MS);
+  if (init.signal) { if (init.signal.aborted) ctrl.abort(); else init.signal.addEventListener('abort', () => ctrl.abort()); }
+  let res;
+  try { res = await fetch(input, Object.assign({}, init, {signal: ctrl.signal})); }
+  catch (e) {
+    if (timedOut) throw codedError('TIMEOUT', 'Сервер не ответил за ' + (LOAD_TIMEOUT_MS / 1000) + ' секунд');
+    if (e && e.name === 'AbortError') throw e;
+    throw codedError('NETWORK', 'Нет связи с сервером');
+  } finally { clearTimeout(timer); }
+  if (isData && res.status === 401) sessionExpired();
+  else if (isData && res.status === 403) {
+    // 403 бывает и при обычном запрете доступа. Выходим, только если дело в просроченном входе (JWT).
+    const j = await res.clone().json().catch(() => ({}));
+    if (/^PGRST3/.test(j.code || '') || /jwt/i.test(j.message || '')) sessionExpired();
+  }
+  return res;
+}
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {global: {fetch: sbFetch}});
+
+// Короткий технический код для сообщения об ошибке: HTTP 503, TIMEOUT, NETWORK...
+function failCode(e) {
+  if (!e) return 'ERR';
+  if (FAIL_CODES.includes(e.code)) return e.code;
+  if (e.httpStatus) return 'HTTP ' + e.httpStatus + (e.code ? ' · ' + e.code : '');
+  if (e.code) return String(e.code);
+  return e.name && e.name !== 'Error' ? e.name : 'ERR';
+}
+// Ответ базы с ошибкой превращаем в настоящую ошибку с кодом.
+function loadErr(r) {
+  const e = (r && r.error) || {};
+  const out = new Error(e.message || 'ошибка загрузки');
+  out.code = e.code || ''; out.httpStatus = r && r.status ? r.status : 0;
+  if (!out.httpStatus && !FAIL_CODES.includes(out.code)) out.code = out.code || 'NETWORK';
+  return out;
+}
+// «Серьёзная» ошибка: нет связи, сервер не ответил, сбой сервера, сессия закончилась.
+// Не путаем с «таблицы ещё нет» (404) — такие случаи страница обрабатывает сама.
+const isFatal = (r) => !!(r && r.error && (!r.status || r.status === 401 || r.status >= 500 || FAIL_CODES.includes(r.error.code)));
+
+function loadFailHtml(e) {
+  return '<div class="loadfail" role="alert"><div><strong>Не удалось загрузить данные. Сервер временно недоступен.</strong>' +
+    '<div class="code">Код: ' + esc(failCode(e)) + '</div></div>' +
+    '<button class="btn" type="button" data-retry>Повторить</button></div>';
+}
+// Показать ошибку на месте блока; кнопка «Повторить» запускает onRetry.
+function showLoadFail(box, e, onRetry) {
+  if (!box) return;
+  if (e && e.code === 'NO_SESSION') return;   // уже отправили на вход
+  console.warn('Загрузка не удалась:', e);
+  box.innerHTML = loadFailHtml(e);
+  const b = box.querySelector('[data-retry]');
+  if (b) b.onclick = onRetry;
+}
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -312,10 +384,9 @@ async function loadAll() {
     db.from('carriers').select('*').order('name'),
     db.from('carrier_checks').select('id').limit(1)
   ]);
+  for (const r of [t, c, k]) if (r.error) throw loadErr(r);
+  if (isFatal(v)) throw loadErr(v);
   vetReady = !v.error;   // таблицы СБ есть только после запуска sql/006
-  if (t.error) throw t.error;
-  if (c.error) throw c.error;
-  if (k.error) throw k.error;
   trips = t.data; clients = c.data; carriers = k.data;
   await loadOrders();
 }
@@ -489,7 +560,6 @@ function renderDashboard(fresh) {
     '<div class="top" id="dashTop"><div><h1>Дашборд</h1><div class="sub">Заказы: рейсы и сделки, без черновиков. Суммы в евро. Чистая прибыль: доход минус расход минус налог. ' + periodNote(range) + '</div></div>' +
     '<div class="acts"><button class="btn ghost" type="button" data-qi>Быстрый ввод</button><a class="btn" href="#/orders/new" style="text-decoration:none">+ Новый заказ</a></div></div>' +
     periodHtml(dashPeriod, 'p') +
-    (ordersErr ? '<div class="err">Заказы не загрузились, цифры дашборда неполные: ' + esc(ordersErr) + '</div>' : '') +
     '<div class="metrics">' +
       '<div class="metric"><div class="l">Доход</div><div class="v">' + eur(inc) + '</div></div>' +
       '<div class="metric"><div class="l">Налоги</div><div class="v">' + eur(tax) + '</div></div>' +
@@ -512,7 +582,7 @@ function renderDashboard(fresh) {
   };
   // Заказы могли измениться в карточках: подгружаем свежие и перерисовываем один раз.
   if (!fresh && Date.now() - ordersLoadedAt > 3000) {
-    loadOrders().then(() => { if ($('dashTop')) renderDashboard(true); });
+    loadOrders().then(() => { if ($('dashTop')) renderDashboard(true); }, (e) => { if ($('dashTop')) showLoadFail($('view'), e, retryAll); });
   }
 }
 
@@ -645,9 +715,9 @@ async function mountDocs(boxId, link, folder, synced) {
   const box = $(boxId); if (!box) return;
   const key = link.trip_id ? 'trip_id' : 'deal_id', val = link.trip_id || link.deal_id;
   const r = await db.from('documents').select('*').eq(key, val).order('created_at');
-  const docs = r.error ? [] : r.data;
+  if (r.error) return showLoadFail(box, loadErr(r), () => mountDocs(boxId, link, folder, synced));
+  const docs = r.data;
   box.innerHTML =
-    (r.error ? '<div class="err">Документы не загрузились: ' + esc(r.error.message) + '</div>' : '') +
     '<label class="dropz" id="' + boxId + 'Drop"><input type="file" multiple id="' + boxId + 'File" class="sr">' +
       '<span>Перетащи файлы сюда или <u>выбери</u></span><span class="muted" id="' + boxId + 'Msg" role="status"></span></label>' +
     (docs.length ? docs.map((d) => {
@@ -868,9 +938,8 @@ async function renderDeals() {
   $('newDealBtn').onclick = (e) => createDeal(e.currentTarget);
   const r = await db.from('deals').select('*, clients(name), deal_lines(*)').order('created_at', {ascending: false});
   if (location.hash !== '#/deals') return;
-  if (r.error) {
-    $('view').innerHTML = head + '<div class="err">Расчёты не загрузились: ' + esc(r.error.message) + '</div>';
-  } else {
+  if (r.error) throw loadErr(r);
+  {
     const rows = sortDealsByStart(r.data);
     $('view').innerHTML = head + '<div class="card">' + (!rows.length ? '<div class="pad muted">Расчётов пока нет</div>' :
       '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Название</th><th>Клиент</th><th>Загрузка</th><th>Выгрузка</th><th>Статус</th><th class="r">Цена клиенту</th><th class="r">Прибыль</th></tr></thead><tbody>' +
@@ -920,8 +989,7 @@ async function renderDeal(id, okMsg) {
   ]);
   if (location.hash !== '#/deal/' + id) return;
   const back = '<a href="#/orders" style="font-size:14px;text-decoration:none">← Все заказы</a>';
-  const e = d.error || l.error || c.error;
-  if (e) { $('view').innerHTML = '<div>' + back + '</div><div class="err">Расчёт не загрузился: ' + esc(e.message) + '</div>'; return; }
+  for (const r of [d, l, c]) if (r.error) throw loadErr(r);
   if (!d.data) { $('view').innerHTML = '<div>' + back + '</div><div class="err">Расчёт не найден</div>'; return; }
   dealState = {
     id: id,
@@ -1179,16 +1247,18 @@ function normalizeOrders(rows, tripRows) {
 const NEW_ORDER_TAX = 0.18;
 const NEW_ORDER_COMPANY = COMPANIES[0];
 
-let orders = [], ordersErr = null, ordersLoadedAt = 0, ordersOkMsg = '';
+let orders = [], ordersLoadedAt = 0, ordersOkMsg = '';
 let ordersFilter = {mode: 'all', from: '', to: '', client: '', kind: '', status: ''};
 
 let ordersMissing = new Map();   // id заказа → что не заполнено (только заказы из быстрого ввода с пометкой)
 async function loadOrders() {
   const [r, mr] = await Promise.all([db.from('orders').select('*'),
     db.from('deals').select('id, title, client_id, start_date, end_date, currency, fx_to_eur, final_price, client_invoice_amount, client_due_date, notes, deal_lines(carrier_id, cost_rate, payable_amount, due_date)').ilike('notes', '%' + MISS_MARK + '%')]);
+  if (r.error) throw loadErr(r);
+  if (isFatal(mr)) throw loadErr(mr);
   ordersMissing = new Map();
   if (!mr.error) (mr.data || []).forEach((d) => { const m = missOf(d, d.deal_lines); if (m.length) ordersMissing.set(d.id, m); });
-  if (r.error) { orders = []; ordersErr = r.error.message; } else { orders = normalizeOrders(r.data, trips); ordersErr = null; }
+  orders = normalizeOrders(r.data, trips);
   ordersLoadedAt = Date.now();
 }
 const clientName = (id) => { const c = clients.find((x) => x.id === id); return c ? c.name : ''; };
@@ -1287,7 +1357,6 @@ function renderOrders(fresh) {
     '<div class="top" id="ordersTop"><div><h1>Заказы</h1><div class="sub">Рейсы и сделки в одном списке. Суммы в евро. ' + periodNote(range) + '</div></div>' +
     '<div class="acts"><button class="btn ghost" type="button" data-qi>Быстрый ввод</button><a class="btn" href="#/orders/new" style="text-decoration:none">+ Новый заказ</a></div></div>' +
     (msg ? '<div class="okbox">' + esc(msg) + '</div>' : '') +
-    (ordersErr ? '<div class="err">Заказы не загрузились: ' + esc(ordersErr) + '</div>' : '') +
     periodHtml(f, 'o') +
     '<div class="filters">' +
       '<div><label for="fClient">Клиент</label><select id="fClient">' + opt('', 'Все клиенты', f.client) + opt('__none', 'Без клиента', f.client) +
@@ -1304,7 +1373,7 @@ function renderOrders(fresh) {
   bindOrderRows($('ordersCard'));
   // Заказы могли измениться в карточках: подгружаем свежие и перерисовываем один раз.
   if (!fresh && Date.now() - ordersLoadedAt > 3000) {
-    loadOrders().then(() => { if ($('ordersTop')) renderOrders(true); });
+    loadOrders().then(() => { if ($('ordersTop')) renderOrders(true); }, (e) => { if ($('ordersTop')) showLoadFail($('view'), e, retryAll); });
   }
 }
 
@@ -1315,6 +1384,7 @@ async function renderNewOrder() {
   setNav('orders');
   $('view').innerHTML = '<div class="muted">Открываю форму...</div>';
   const cat = await db.from('service_catalog').select('*').order('sort').order('name');
+  if (cat.error) throw loadErr(cat);
   if (location.hash !== '#/orders/new') return;
   newOrder = {client_name: '', title: '', start_date: null, end_date: null, currency: 'EUR', fx_to_eur: null,
     quick: {key: 'q', carrier_id: null, invoice_no: '', due_date: null, payable_amount: null},
@@ -1516,7 +1586,7 @@ async function saveNewOrder() {
     await logOverrides(blocked, {deal_id: newId}, reason);
     const cl = await db.from('clients').select('id, name').order('name');
     if (!cl.error) clients = cl.data;
-    await loadOrders();
+    await loadOrders().catch(() => { ordersLoadedAt = 0; });
     ordersOkMsg = 'Заказ «' + title + '» сохранён.';
     newOrder = null;
     location.hash = '#/orders';
@@ -2015,7 +2085,7 @@ async function qiCreate() {
     const [cl, k] = await Promise.all([db.from('clients').select('id, name').order('name'), db.from('carriers').select('*').order('name')]);
     if (!cl.error) clients = cl.data;
     if (!k.error) carriers = k.data;
-    await loadOrders();
+    await loadOrders().catch(() => { ordersLoadedAt = 0; });
     $('modalRoot').innerHTML = ''; qi = null;
     ordersOkMsg = 'Заказ «' + (f.route || QI_NO_ROUTE) + '» создан через быстрый ввод.' + (miss.length ? ' Не заполнено: ' + miss.join(', ') + '.' : '');
     if (location.hash === '#/orders') renderOrders(true); else location.hash = '#/orders';
@@ -2149,7 +2219,7 @@ function financeDebts(dealRows, lineRows, payRows, today, nameOfCarrier, nameOfC
   return {weOwe: Object.assign(finish(out), {unassigned: unassigned}), owedToUs: finish(inn)};
 }
 
-let fin = {deals: [], lines: [], pays: [], err: null};
+let fin = {deals: [], lines: [], pays: []};
 async function loadFinance() {
   const [d, l, p, k] = await Promise.all([
     db.from('deals').select('*'),
@@ -2157,9 +2227,9 @@ async function loadFinance() {
     db.from('payments').select('*').order('paid_at', {ascending: false}),
     db.from('carriers').select('*').order('name')
   ]);
-  const e = d.error || l.error || p.error || k.error;
-  fin = {deals: d.data || [], lines: l.data || [], pays: p.data || [], err: e ? e.message : null};
-  if (!k.error) carriers = k.data;
+  for (const r of [d, l, p, k]) if (r.error) throw loadErr(r);
+  fin = {deals: d.data, lines: l.data, pays: p.data};
+  carriers = k.data;
 }
 const curSums = (byCur) => Object.entries(byCur).map(([c, v]) => money(v, c)).join(' + ');
 
@@ -2174,7 +2244,6 @@ async function renderCarriers() {
   $('view').innerHTML =
     '<div class="top"><div><h1>Контрагенты</h1><div class="sub">Перевозчики, склады, страховые, брокеры и другие, кому мы платим</div></div>' +
     '<button class="btn" id="newCarrierBtn" type="button">+ Новый контрагент</button></div>' +
-    (fin.err ? '<div class="err">Данные загрузились не полностью: ' + esc(fin.err) + '</div>' : '') +
     '<div class="card">' + (!carriers.length ? '<div class="pad muted">Контрагентов пока нет</div>' :
       '<div class="scroll"><table class="tbl-sm"><thead><tr><th>Название</th><th>Тип</th><th>Валюта</th><th>Код</th><th>Контакт</th>' + (vetReady ? '<th>Проверка СБ</th>' : '') + '<th class="r">Мы должны</th><th></th></tr></thead><tbody>' +
       carriers.map((c) => {
@@ -2425,7 +2494,6 @@ function drawFinance(tab) {
   const debts = financeDebts(fin.deals, fin.lines, fin.pays, todayIso(), carrierName, clientName);
   const cur = FIN_TABS[tab === 'in' ? 1 : tab === 'payments' ? 2 : 0][0];
   const head = '<div class="top"><div><h1>Финансы</h1><div class="sub">Суммы в валюте заказа, итоги — в евро по курсу заказа. Черновики не учитываются.</div></div></div>' +
-    (fin.err ? '<div class="err">Данные загрузились не полностью: ' + esc(fin.err) + '</div>' : '') +
     '<nav class="tabs" aria-label="Разделы финансов">' + FIN_TABS.map(([h, t]) => '<a href="' + h + '"' + (h === cur ? ' class="active" aria-current="page"' : '') + '>' + t + '</a>').join('') + '</nav>';
   let body = '';
   if (tab === 'in') body = owedHtml(debts.owedToUs);
@@ -2504,8 +2572,7 @@ function openPayModal(heading, sub, it, base, tab) {
     const r = await db.from('payments').insert(row);
     if (r.error) { fail('Не удалось сохранить: ' + r.error.message); btn.disabled = false; btn.textContent = 'Сохранить платёж'; return; }
     $('modalRoot').innerHTML = '';
-    await loadFinance();
-    drawFinance(tab);
+    try { await loadFinance(); drawFinance(tab); } catch (e) { showLoadFail($('view'), e, retryAll); }
   };
 }
 function paymentsHtml() {
@@ -2544,8 +2611,7 @@ function bindPayments() {
       if (!p || !confirm('Удалить платёж ' + money(numOr(p.amount, 0), p.currency || 'EUR') + ' от ' + fdate(p.paid_at) + '? Долг снова увеличится на эту сумму. Отменить удаление нельзя.')) return;
       const r = await db.from('payments').delete().eq('id', p.id);
       if (r.error) { alert('Не удалось удалить: ' + r.error.message); return; }
-      await loadFinance();
-      drawFinance('payments');
+      try { await loadFinance(); drawFinance('payments'); } catch (e) { showLoadFail($('view'), e, retryAll); }
     };
   });
 }
@@ -2654,6 +2720,7 @@ async function loadSb() {
     db.from('deals').select('id, title, status, start_date'),
     db.from('trip_ratings').select('*')
   ]);
+  for (const r of [k, ck, ins, dc, ln, dl, rt]) if (isFatal(r)) throw loadErr(r);
   if (!k.error) carriers = k.data;
   vetReady = !ck.error;
   const e = k.error || ins.error || dc.error || ln.error || dl.error || rt.error;
@@ -2747,6 +2814,7 @@ async function renderSbCard(id) {
   $('view').innerHTML = '<div class="muted">Загружаю карточку...</div>';
   await loadSb();
   const ck = vetReady ? await db.from('carrier_checks').select('*, carrier_check_items(*)').eq('carrier_id', id).order('checked_at', {ascending: false}).order('created_at', {ascending: false}) : {data: []};
+  if (ck.error) throw loadErr(ck);
   if (location.hash !== hash) return;
   const back = '<div><a href="#/sb" style="font-size:14px;text-decoration:none">← Все перевозчики</a></div>';
   const c = carriers.find((x) => x.id === id);
@@ -3133,13 +3201,36 @@ async function fillDashExpiring() {
   ]);
   const box = $('dashExp');
   if (!box) return;
-  if (i.error || d.error) { box.innerHTML = '<div class="err">Сроки документов не загрузились: ' + esc((i.error || d.error).message) + '</div>'; return; }
+  if (i.error || d.error) return showLoadFail(box, loadErr(i.error ? i : d), fillDashExpiring);
   const list = expiringDocs(i.data, d.data, soon);
   box.innerHTML = !list.length ? '' : '<div class="card"><h3>Истекают ≤30 дней <span class="gsum">полисы и документы перевозчиков</span></h3>' +
     list.map((x) => '<div class="row"><div><a href="#/sb/c/' + esc(x.carrier_id) + '" style="font-weight:500">' + esc(carrierName(x.carrier_id) || 'Перевозчик') + '</a><div class="sub">' + esc(x.title) + ' · до ' + fdate(x.date) + '</div></div>' + expiryChip(x.date) + '</div>').join('') + '</div>';
 }
 
-function route() {
+// Открыть страницу под защитой: любая ошибка загрузки или ожидание дольше 15 секунд
+// показывают сообщение с кнопкой «Повторить» вместо нулей и вечного «Загружаю...».
+let viewSeq = 0;
+function runView(fn) {
+  const seq = ++viewSeq;
+  let settled = false;
+  const timer = setTimeout(() => {
+    if (!settled && seq === viewSeq) showLoadFail($('view'), codedError('TIMEOUT', 'долгая загрузка'), retryAll);
+  }, LOAD_TIMEOUT_MS);
+  return Promise.resolve().then(fn)
+    .catch((e) => { if (seq === viewSeq && !$('app').classList.contains('hidden')) showLoadFail($('view'), e, retryAll); else console.warn(e); })
+    .finally(() => { settled = true; clearTimeout(timer); });
+}
+// «Повторить»: заново загружаем основные данные и открываем текущую страницу.
+function retryAll() {
+  return runView(async () => {
+    $('view').innerHTML = '<div class="muted">Загружаю данные...</div>';
+    await loadAll();
+    return openPage();
+  });
+}
+function route() { return runView(openPage); }
+
+function openPage() {
   const h = location.hash || '#/';
   if (h === '#/sb') return renderSb();
   if (h.startsWith('#/sb/c/')) return renderSbCard(h.slice(7));
@@ -3161,15 +3252,44 @@ function route() {
 async function enterApp() {
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
-  $('view').innerHTML = '<div class="muted">Загружаю данные...</div>';
-  try { await loadAll(); route(); }
-  catch (err) { $('view').innerHTML = '<div class="err">Не удалось загрузить данные: ' + esc(err.message) + '</div>'; }
+  return retryAll();
 }
 
-function enterLogin() {
+function enterLogin(msg) {
+  viewSeq++;   // всё, что ещё грузилось, больше ничего не нарисует
   $('app').classList.add('hidden');
   $('login').classList.remove('hidden');
+  const box = $('loginErr');
+  if (msg) { box.textContent = msg; box.classList.remove('hidden'); } else box.classList.add('hidden');
 }
+
+// Выход без ожидания сервера: сразу стираем сессию в браузере и данные в памяти.
+function clearLocal() {
+  let token = null;
+  try {
+    Object.keys(localStorage).filter((k) => /^sb-.*-auth-token/.test(k)).forEach((k) => {
+      try { token = token || JSON.parse(localStorage.getItem(k)).access_token; } catch (e) { /* не JSON */ }
+      localStorage.removeItem(k);
+    });
+  } catch (e) { /* хранилище недоступно */ }
+  // Сообщаем серверу о выходе в фоне, ответ не ждём.
+  if (token) fetch(SUPABASE_URL + '/auth/v1/logout?scope=global', {method: 'POST', headers: {apikey: SUPABASE_KEY, Authorization: 'Bearer ' + token}}).catch(() => {});
+  trips = []; clients = []; carriers = []; deals = []; orders = []; docsCfg = null;
+  fin = {deals: [], lines: [], pays: []};
+  $('view').innerHTML = '';
+  $('modalRoot').innerHTML = '';
+}
+function leaveApp(msg) {
+  clearLocal();
+  db.auth.signOut({scope: 'local'}).catch(() => {});   // сессии в браузере уже нет: только сбрасывает память клиента
+  enterLogin(msg);
+}
+// Сессия закончилась (сервер ответил 401, токен не обновился или пропал): на вход с пояснением.
+function sessionExpired() {
+  if ($('app').classList.contains('hidden')) return;   // уже на экране входа
+  leaveApp('Сессия истекла, войдите снова');
+}
+db.auth.onAuthStateChange((event) => { if (event === 'SIGNED_OUT') sessionExpired(); });
 
 $('loginForm').onsubmit = async (e) => {
   e.preventDefault();
@@ -3182,12 +3302,13 @@ $('loginForm').onsubmit = async (e) => {
   enterApp();
 };
 
-$('logoutBtn').onclick = async () => { await db.auth.signOut(); trips = []; clients = []; carriers = []; deals = []; orders = []; enterLogin(); };
+$('logoutBtn').onclick = () => leaveApp();
 window.addEventListener('hashchange', () => { if (!$('app').classList.contains('hidden') && trips.length + clients.length >= 0) route(); });
 
 (async () => {
-  const s = await db.auth.getSession();
-  if (s.data.session) enterApp(); else enterLogin();
+  let s = null;
+  try { s = (await db.auth.getSession()).data.session; } catch (e) { /* нет связи: просто покажем вход */ }
+  if (s) enterApp(); else enterLogin();
 })();
 </script>
 </body>
